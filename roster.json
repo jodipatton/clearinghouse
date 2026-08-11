@@ -1,0 +1,6 @@
+{
+  "$comment": "Gate 06 — the entire authorization model. Git-backed, synced by CI, never writable by the running service. Deny by default: not on this list, no access. Decision E may replace hand-edits with a sync from one restricted Google group.",
+  "members": [
+    { "email": "jodi@1uphealth.com", "name": "Jodi Patton" }
+  ]
+}
