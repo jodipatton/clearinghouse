@@ -24,7 +24,9 @@ export const FIXTURES: Opportunity[] = [
     closeDate: "2026-10-15",
     ownerName: "Sam Okafor",
     accountName: "BigCo Payer",
-    lastModified: "2026-08-01T16:40:00Z",
+    // Deliberately stale (paired with planhat/fixtures.ts's BigCo company)
+    // to exercise the stale_momentum fiction rule in test/fictions.test.ts.
+    lastModified: "2026-07-01T00:00:00Z",
     nextStep: "Security review call with their CISO",
     description: "CISO evaluating FHIR endpoint architecture.",
     slackChannelId: null,

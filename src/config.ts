@@ -51,6 +51,26 @@ const schema = z
     // hands, and should read as an assertion someone made.
     GONG_PHI_REVIEW_SIGNED_OFF: z.enum(["true", "false"]).default("false"),
 
+    // "mock" = fixture-backed Planhat for local dev and tests.
+    // "live" = static bearer token against a real Planhat tenant.
+    PLANHAT_MODE: z.enum(["mock", "live"]).default("mock"),
+    PLANHAT_API_URL: z.string().url().default("https://api.planhat.com"),
+    PLANHAT_API_TOKEN: z.string().optional(),
+
+    // Gate for POST /routines/* — a service-to-service path, never reached by
+    // an end-user Claude session, so it deliberately does not reuse the
+    // roster/JWT machinery above. Unset = the route always denies (403),
+    // decoupled from whether the rest of the server is configured yet.
+    ROUTINES_SHARED_SECRET: z.string().min(16).optional(),
+    // Default true: routines compute and return what they *would* write to
+    // Planhat without ever calling the adapter's write method. Flipping this
+    // is a one-line config change, not a code change — and even then, see
+    // the README before ever doing it outside a test.
+    ROUTINES_DRY_RUN: z
+      .string()
+      .default("true")
+      .transform((v) => v !== "false"),
+
     ROSTER_PATH: z.string().default("roster.json"),
     NODE_ENV: z.string().default("development"),
   })
@@ -109,6 +129,12 @@ const schema = z
         message:
           "GONG_CONTENT=summaries against live Gong requires " +
           "GONG_PHI_REVIEW_SIGNED_OFF=true (PRD decision D / gate 04)",
+      });
+    }
+    if (cfg.PLANHAT_MODE === "live" && !cfg.PLANHAT_API_TOKEN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "PLANHAT_MODE=live requires PLANHAT_API_TOKEN",
       });
     }
   });

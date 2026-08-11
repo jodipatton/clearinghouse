@@ -1,6 +1,10 @@
 import { SignJWT, importPKCS8 } from "jose";
 import type { Opportunity, SalesforceClient } from "./types.js";
-import { findOpportunitiesSoql, getOpportunitySoql } from "./soql.js";
+import {
+  findOpportunitiesSoql,
+  getOpportunitySoql,
+  listOpportunitiesSoql,
+} from "./soql.js";
 
 /**
  * Gate 05 — OAuth 2.0 JWT bearer flow as exactly one pre-authorized
@@ -123,5 +127,10 @@ export class LiveSalesforce implements SalesforceClient {
   async getOpportunity(id: string): Promise<Opportunity | null> {
     const records = await this.query(getOpportunitySoql(id));
     return records.length ? LiveSalesforce.toOpportunity(records[0]) : null;
+  }
+
+  async listOpportunities(limit: number): Promise<Opportunity[]> {
+    const records = await this.query(listOpportunitiesSoql(limit));
+    return records.map(LiveSalesforce.toOpportunity);
   }
 }

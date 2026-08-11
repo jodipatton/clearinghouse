@@ -19,4 +19,6 @@ export interface SalesforceClient {
   findOpportunities(query: string, limit: number): Promise<Opportunity[]>;
   /** Exact lookup by 15/18-char Salesforce Id. */
   getOpportunity(id: string): Promise<Opportunity | null>;
+  /** Unfiltered bulk read, most-recently-modified first, bounded. For scans (e.g. pipeline-pulse), not for MCP tools. */
+  listOpportunities(limit: number): Promise<Opportunity[]>;
 }

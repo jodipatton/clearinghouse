@@ -9,6 +9,7 @@ import { createApp } from "../src/http/app.js";
 import { MockSalesforce } from "../src/salesforce/mock.js";
 import { MockSlack } from "../src/slack/mock.js";
 import { MockGong } from "../src/gong/mock.js";
+import { MockPlanhat } from "../src/planhat/mock.js";
 import { Roster } from "../src/roster.js";
 
 const PUBLIC_URL = "https://mcp.example.com/mcp";
@@ -35,6 +36,7 @@ describe("OAuth resource-server handshake", () => {
       sf: new MockSalesforce(),
       slack: new MockSlack(),
       gong: new MockGong(),
+      planhat: new MockPlanhat(),
       audit: () => {},
       roster: new Roster(rosterFile([])),
     });
@@ -94,6 +96,7 @@ describe("roster gate", () => {
       sf: new MockSalesforce(),
       slack: new MockSlack(),
       gong: new MockGong(),
+      planhat: new MockPlanhat(),
       audit: (e) => {
         if (e.outcome === "denied") denials.push(e.actor);
       },

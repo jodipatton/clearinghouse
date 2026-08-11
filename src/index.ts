@@ -6,6 +6,8 @@ import { MockSlack } from "./slack/mock.js";
 import { LiveSlack } from "./slack/live.js";
 import { MockGong } from "./gong/mock.js";
 import { LiveGong } from "./gong/live.js";
+import { MockPlanhat } from "./planhat/mock.js";
+import { LivePlanhat } from "./planhat/live.js";
 import { createApp } from "./http/app.js";
 
 const cfg = loadConfig();
@@ -35,7 +37,15 @@ const gong =
       })
     : new MockGong(cfg.GONG_CONTENT);
 
-const app = createApp(cfg, { sf, slack, gong, audit: stdoutAudit });
+const planhat =
+  cfg.PLANHAT_MODE === "live"
+    ? new LivePlanhat({
+        apiUrl: cfg.PLANHAT_API_URL,
+        apiToken: cfg.PLANHAT_API_TOKEN!,
+      })
+    : new MockPlanhat();
+
+const app = createApp(cfg, { sf, slack, gong, planhat, audit: stdoutAudit });
 
 app.listen(cfg.PORT, () => {
   process.stdout.write(
@@ -49,6 +59,8 @@ app.listen(cfg.PORT, () => {
       slackMode: cfg.SLACK_MODE,
       gongMode: cfg.GONG_MODE,
       gongContent: cfg.GONG_CONTENT,
+      planhatMode: cfg.PLANHAT_MODE,
+      routinesDryRun: cfg.ROUTINES_DRY_RUN,
     }) + "\n",
   );
 });

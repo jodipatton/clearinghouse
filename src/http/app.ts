@@ -5,14 +5,17 @@ import type { AuditSink } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
 import type { SlackClient } from "../slack/types.js";
 import type { GongClient } from "../gong/types.js";
+import type { PlanhatClient } from "../planhat/types.js";
 import { Roster } from "../roster.js";
 import { bearerAuth, metadataUrl } from "./auth.js";
 import { buildServer } from "../mcp/server.js";
+import { buildRoutinesRouter } from "./routines.js";
 
 export interface AppDeps {
   sf: SalesforceClient;
   slack: SlackClient;
   gong: GongClient;
+  planhat: PlanhatClient;
   audit: AuditSink;
   roster?: Roster;
 }
@@ -26,6 +29,18 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true });
   });
+
+  // Service-to-service only (Cloud Scheduler), never the MCP/Claude path —
+  // its own auth (serviceAuth), not bearerAuth/roster.
+  app.use(
+    "/routines",
+    buildRoutinesRouter(cfg, {
+      sf: deps.sf,
+      planhat: deps.planhat,
+      audit: deps.audit,
+      dryRun: cfg.ROUTINES_DRY_RUN,
+    }),
+  );
 
   // RFC 9728 protected-resource metadata. `resource` must byte-match the URL
   // the user typed into Claude's connector settings, path included.

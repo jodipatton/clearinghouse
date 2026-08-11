@@ -25,4 +25,8 @@ export class MockSalesforce implements SalesforceClient {
     assertSalesforceId(id);
     return this.data.find((o) => o.id === id) ?? null;
   }
+
+  async listOpportunities(limit: number): Promise<Opportunity[]> {
+    return this.data.slice(0, Math.min(Math.max(Math.trunc(limit), 1), 200));
+  }
 }

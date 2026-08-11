@@ -61,3 +61,11 @@ export function getOpportunitySoql(id: string): string {
     `WHERE Id = '${assertSalesforceId(id)}' LIMIT 1`
   );
 }
+
+export function listOpportunitiesSoql(limit: number): string {
+  const bounded = Math.min(Math.max(Math.trunc(limit), 1), 200);
+  return (
+    `SELECT ${OPPORTUNITY_FIELDS.join(", ")} FROM Opportunity ` +
+    `ORDER BY LastModifiedDate DESC LIMIT ${bounded}`
+  );
+}
