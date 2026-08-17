@@ -30,16 +30,20 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   Salesforce Ids validated by shape, LIMIT capped server-side; free-text
   fields (deal descriptions, Slack messages, Gong call titles and briefs)
   returned inside a labeled external-data envelope.
+- **`pipeline-pulse` routine** — a service-to-service job (not a Claude tool)
+  that cross-references Salesforce opportunities against Planhat companies to
+  flag "fictions": pipeline data that looks fine but isn't (`ghost_expansion`,
+  `renewal_blindspot`, `stale_momentum`). See below.
 
 Not yet built (Week 5+): the Gong nightly index that replaces the window scan,
-`recent_activity`, `pipeline_snapshot`, `coverage_check` as its own tool,
-per-person budgets, directory sync.
+`recent_activity`, `pipeline_snapshot` as an MCP tool, `coverage_check` as its
+own tool, per-person budgets, directory sync.
 
 ## Run locally
 
 ```bash
 npm install
-cp .env.example .env       # defaults: AUTH_MODE=dev, SF_MODE=mock
+cp .env.example .env       # defaults: AUTH_MODE=dev, SF_MODE=mock, PLANHAT_MODE=mock
 npm run dev
 npm test
 ```
@@ -92,6 +96,44 @@ start when `NODE_ENV=production`.
    direct-read stand-in for the PRD's nightly index; when call volume makes
    the scan slow, the index lands behind the same `GongClient` interface.
 
+## Pipeline-pulse routine (Planhat)
+
+`POST /routines/pipeline-pulse` is a separate, service-to-service path — not
+part of the `/mcp` connector Claude talks to, and not reachable by an end-user
+Claude session. It's meant to be triggered by Cloud Scheduler, not a person.
+
+What it does: pulls Salesforce opportunities and Planhat companies, then runs
+three deterministic detectors over them —
+
+- **`ghost_expansion`** — a Planhat expansion signal with no real health behind
+  it (see `src/fictions/rules/ghostExpansion.ts`)
+- **`renewal_blindspot`** — a Planhat renewal coming due (or overdue) with no
+  open Salesforce opportunity anywhere near that date
+- **`stale_momentum`** — a late-stage opportunity that's gone quiet in both
+  Salesforce and Planhat
+
+High-confidence findings can propose a `[DRAFT]` Planhat project as a
+follow-up; everything else surfaces as a Slack nudge (`suggestedAction`).
+`ROUTINES_DRY_RUN=true` by default means the routine always computes and
+returns what it *would* create in Planhat without ever calling the write
+method — the preview response and the real write share the same code path
+(`toProjectDraft` in `src/routines/pipelinePulse.ts`), so the preview can't
+drift from reality.
+
+**Before setting `PLANHAT_MODE=live` or `ROUTINES_DRY_RUN=false`:**
+
+1. `src/planhat/live.ts`'s field mapping (`RawCompany`) is a best-effort guess
+   at Planhat's schema — a real-tenant lookup was started but never finished.
+   Verify it against one real company record first.
+2. Generate a Planhat API token scoped to this service, store it as
+   `PLANHAT_API_TOKEN` (Secret Manager in Cloud Run, never a file in the repo).
+3. Generate a random secret ≥16 chars for `ROUTINES_SHARED_SECRET`; whoever
+   calls the route (Cloud Scheduler) sends it as `x-routines-secret`. Unset =
+   the route always 403s, independent of whether the rest of the server is
+   configured.
+4. Only after (1) is confirmed against real data, flip `ROUTINES_DRY_RUN=false`
+   — until then, run it in dry-run and read the `proposedProjects` it returns.
+
 ## Auth vendor setup (Decision C — vendor-agnostic checklist)
 
 Whichever of WorkOS AuthKit / Auth0 / Stytch / Descope is chosen, on
@@ -131,5 +173,9 @@ Whichever of WorkOS AuthKit / Auth0 / Stytch / Descope is chosen, on
 
 ## Deliberately not building
 
-No workspace-wide Slack search, no stored Slack messages, **no write tools
-ever**, no admin tools inside the connector (PRD §06).
+No workspace-wide Slack search, no stored Slack messages, **no write tools in
+the Claude-facing connector, ever**, no admin tools inside the connector (PRD
+§06). The one write path in this repo — `pipeline-pulse` creating draft
+Planhat projects — is a separate service-to-service routine Claude can never
+reach, dry-run by default, and still gated on an unverified field mapping
+(see above).
