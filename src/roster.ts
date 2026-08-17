@@ -13,6 +13,7 @@ interface RosterFile {
 
 export class Roster {
   private emails = new Set<string>();
+  private members: { email: string; name?: string }[] = [];
   private mtimeMs = -1;
 
   constructor(private readonly path: string) {}
@@ -23,18 +24,21 @@ export class Roster {
       mtimeMs = statSync(this.path).mtimeMs;
     } catch {
       this.emails = new Set();
+      this.members = [];
       this.mtimeMs = -1;
       return;
     }
     if (mtimeMs === this.mtimeMs) return;
     try {
       const raw = JSON.parse(readFileSync(this.path, "utf8")) as RosterFile;
+      this.members = raw.members ?? [];
       this.emails = new Set(
-        (raw.members ?? []).map((m) => m.email.trim().toLowerCase()),
+        this.members.map((m) => m.email.trim().toLowerCase()),
       );
       this.mtimeMs = mtimeMs;
     } catch {
       this.emails = new Set();
+      this.members = [];
       this.mtimeMs = -1;
     }
   }
@@ -43,5 +47,11 @@ export class Roster {
     if (!email) return false;
     this.refresh();
     return this.emails.has(email.trim().toLowerCase());
+  }
+
+  /** Read-only view for the local dashboard's admin tab — never a write path. */
+  listMembers(): { email: string; name?: string }[] {
+    this.refresh();
+    return [...this.members];
   }
 }

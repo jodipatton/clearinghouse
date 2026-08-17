@@ -1,5 +1,5 @@
 import { loadConfig } from "./config.js";
-import { stdoutAudit } from "./audit.js";
+import { stdoutAudit, recordingAudit } from "./audit.js";
 import { MockSalesforce } from "./salesforce/mock.js";
 import { LiveSalesforce } from "./salesforce/live.js";
 import { MockSlack } from "./slack/mock.js";
@@ -45,7 +45,11 @@ const planhat =
       })
     : new MockPlanhat();
 
-const app = createApp(cfg, { sf, slack, gong, planhat, audit: stdoutAudit });
+// The dashboard's audit tab reads from this in-memory tail; stdoutAudit
+// still gets every event unchanged, headed for Cloud Logging as before.
+const { sink: audit, recent: recentAudit } = recordingAudit(stdoutAudit);
+
+const app = createApp(cfg, { sf, slack, gong, planhat, audit, recentAudit });
 
 app.listen(cfg.PORT, () => {
   process.stdout.write(
@@ -61,6 +65,7 @@ app.listen(cfg.PORT, () => {
       gongContent: cfg.GONG_CONTENT,
       planhatMode: cfg.PLANHAT_MODE,
       routinesDryRun: cfg.ROUTINES_DRY_RUN,
+      dashboard: `${cfg.publicOrigin}/dashboard`,
     }) + "\n",
   );
 });

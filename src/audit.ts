@@ -23,3 +23,26 @@ export const stdoutAudit: AuditSink = (event) => {
       "\n",
   );
 };
+
+export interface RecordedAuditEvent extends AuditEvent {
+  ts: string;
+}
+
+/**
+ * Wraps a sink with an in-memory ring buffer for the local dashboard's audit
+ * tab — a read-only, most-recent-N view. Cloud Logging → BigQuery (the real
+ * audit trail) stays the sink passed in; this never replaces it, and the
+ * buffer is lost on restart by design (it's a live tail, not a durable log).
+ */
+export function recordingAudit(
+  sink: AuditSink,
+  capacity = 200,
+): { sink: AuditSink; recent(): RecordedAuditEvent[] } {
+  const buffer: RecordedAuditEvent[] = [];
+  const wrapped: AuditSink = (event) => {
+    buffer.push({ ts: new Date().toISOString(), ...event });
+    if (buffer.length > capacity) buffer.shift();
+    sink(event);
+  };
+  return { sink: wrapped, recent: () => [...buffer].reverse() };
+}

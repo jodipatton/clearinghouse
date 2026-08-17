@@ -34,6 +34,9 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   that cross-references Salesforce opportunities against Planhat companies to
   flag "fictions": pipeline data that looks fine but isn't (`ghost_expansion`,
   `renewal_blindspot`, `stale_momentum`). See below.
+- **`/dashboard`** — a browser UI behind the same roster gate as `/mcp`, for
+  people who want the data directly instead of asking Claude: deal lookup,
+  a pipeline-pulse review board, and roster/audit admin. See below.
 
 Not yet built (Week 5+): the Gong nightly index that replaces the window scan,
 `recent_activity`, `pipeline_snapshot` as an MCP tool, `coverage_check` as its
@@ -133,6 +136,36 @@ drift from reality.
    configured.
 4. Only after (1) is confirmed against real data, flip `ROUTINES_DRY_RUN=false`
    — until then, run it in dry-run and read the `proposedProjects` it returns.
+
+## Local dashboard
+
+`/dashboard` is a second, human-facing surface — same server, same
+`bearerAuth` + roster gate as `/mcp`, just a browser tab instead of a Claude
+conversation. For anyone who wants to look something up directly, or for
+demoing/debugging without going through Claude at all. Vanilla JS, no build
+step, no separate deploy.
+
+Three tabs:
+
+- **Deal lookup** — search by name (`find_deal`), pick a result, see the same
+  combined Salesforce + Gong + Slack picture `deal_status` /
+  `deal_channel_activity` / `call_details` give Claude.
+- **Pipeline-pulse** — a "Run pipeline-pulse (dry run)" button that lists the
+  fictions it finds and the Planhat projects it would propose. This button
+  **always** forces `dryRun: true`, regardless of `ROUTINES_DRY_RUN` in
+  config — a person clicking a button in a browser should never be the thing
+  that writes to Planhat; only the Cloud Scheduler-triggered
+  `/routines/pipeline-pulse` path can do that, and only once (1) in that
+  section's runbook is done.
+- **Admin & audit** — the roster's members, and a live tail of the most
+  recent audit events (in-memory, capped, lost on restart — the durable trail
+  is still Cloud Logging → BigQuery; this is a convenience view, not a second
+  source of truth).
+
+Free text from external systems (deal descriptions, Slack messages, Gong call
+titles) is written into the page with `textContent`, never `innerHTML` — same
+untrusted-data handling as everywhere else in this codebase, just for a human
+reader instead of an LLM.
 
 ## Auth vendor setup (Decision C — vendor-agnostic checklist)
 

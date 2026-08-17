@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Config } from "../config.js";
-import type { AuditSink } from "../audit.js";
+import type { AuditSink, RecordedAuditEvent } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
 import type { SlackClient } from "../slack/types.js";
 import type { GongClient } from "../gong/types.js";
@@ -10,6 +10,7 @@ import { Roster } from "../roster.js";
 import { bearerAuth, metadataUrl } from "./auth.js";
 import { buildServer } from "../mcp/server.js";
 import { buildRoutinesRouter } from "./routines.js";
+import { buildDashboardRouter } from "./dashboard.js";
 
 export interface AppDeps {
   sf: SalesforceClient;
@@ -18,6 +19,8 @@ export interface AppDeps {
   planhat: PlanhatClient;
   audit: AuditSink;
   roster?: Roster;
+  /** Backs /dashboard's audit tab; a no-op empty list if omitted (e.g. in tests). */
+  recentAudit?: () => RecordedAuditEvent[];
 }
 
 export function createApp(cfg: Config, deps: AppDeps): Express {
@@ -54,6 +57,22 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
   });
 
   const auth = bearerAuth(cfg, roster, deps.audit);
+
+  // Same auth/roster gate as /mcp — a second, human-browsable surface for
+  // the same authorized 1upers, not a public or service-to-service path.
+  app.use(
+    "/dashboard",
+    auth,
+    buildDashboardRouter({
+      sf: deps.sf,
+      slack: deps.slack,
+      gong: deps.gong,
+      planhat: deps.planhat,
+      roster,
+      audit: deps.audit,
+      recentAudit: deps.recentAudit ?? (() => []),
+    }),
+  );
 
   app.post("/mcp", auth, async (req, res) => {
     const server = buildServer({
