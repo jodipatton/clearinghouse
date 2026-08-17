@@ -40,6 +40,15 @@ export function detectRenewalBlindspot(
     const severity =
       daysUntilRenewal <= config.renewalUrgentDays ? "high" : "medium";
 
+    // Real Planhat data can carry a lapsed renewal date years in the past
+    // (see Highmark Health) -- "renews in -726 day(s)" reads as nonsense, so
+    // overdue and upcoming get their own phrasing rather than one template
+    // blindly signed by daysUntilRenewal.
+    const renewalPhrase =
+      daysUntilRenewal < 0
+        ? `was due ${Math.abs(daysUntilRenewal)} day(s) ago`
+        : `renews in ${daysUntilRenewal} day(s)`;
+
     fictions.push({
       id: `renewal_blindspot:none:${company.id}`,
       type: "renewal_blindspot",
@@ -55,8 +64,8 @@ export function detectRenewalBlindspot(
       },
       suggestedAction: "planhat_project",
       summary:
-        `${company.name} renews in ${daysUntilRenewal} day(s) per Planhat ` +
-        `with no open Salesforce opportunity covering it.`,
+        `${company.name} ${renewalPhrase} per Planhat with no open ` +
+        "Salesforce opportunity covering it.",
     });
   }
 

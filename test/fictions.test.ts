@@ -97,6 +97,29 @@ describe("renewal_blindspot", () => {
     expect(fictions[0].accountName).toBe("Sunrise Health Plan");
     expect(fictions[0].evidence.daysUntilRenewal).toBe(36);
     expect(fictions[0].suggestedAction).toBe("planhat_project"); // always, per the design
+    expect(fictions[0].summary).toContain("renews in 36 day(s)");
+  });
+
+  it("phrases an already-lapsed renewal date as overdue, not a negative countdown", () => {
+    const company: PlanhatCompany = {
+      id: "c1",
+      name: "Lapsed Co",
+      ownerEmail: null,
+      healthScore: 5,
+      expansionSignal: false,
+      renewalDate: "2024-01-01", // long past ASOF (2026-08-15)
+      arr: 50000,
+      lastActivityDate: null,
+    };
+    const fictions = fictionsOfType("renewal_blindspot", {
+      opportunities: [],
+      companies: [company],
+    });
+    expect(fictions).toHaveLength(1);
+    expect(fictions[0].evidence.daysUntilRenewal).toBeLessThan(0);
+    expect(fictions[0].summary).toContain("was due");
+    expect(fictions[0].summary).toContain("day(s) ago");
+    expect(fictions[0].summary).not.toContain("renews in -");
   });
 
   it("does not fire when an open opportunity closes near the renewal date", () => {
