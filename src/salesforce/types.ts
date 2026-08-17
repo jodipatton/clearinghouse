@@ -10,6 +10,8 @@ export interface Opportunity {
   /** Free text authored partly by humans outside 1upHealth — always enveloped. */
   nextStep: string | null;
   description: string | null;
+  /** Slack_Channel_Id__c — the one channel mapped to this deal, if any. */
+  slackChannelId: string | null;
 }
 
 export interface SalesforceClient {

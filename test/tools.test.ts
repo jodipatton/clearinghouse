@@ -31,7 +31,8 @@ describe("deal_status", () => {
     expect(deal.owner).toBe("Dana Reyes");
     const coverage = result.coverage as Record<string, string>;
     expect(coverage.salesforce).toBe("answered");
-    expect(coverage.gong).toContain("not yet connected");
+    expect(coverage.gong).toContain("call_details");
+    expect(coverage.slack).toContain("deal_channel_activity");
   });
 
   it("wraps free-text fields in the external-data envelope", async () => {

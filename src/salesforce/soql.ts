@@ -43,6 +43,7 @@ export const OPPORTUNITY_FIELDS = [
   "LastModifiedDate",
   "NextStep",
   "Description",
+  "Slack_Channel_Id__c",
 ] as const;
 
 export function findOpportunitiesSoql(query: string, limit: number): string {

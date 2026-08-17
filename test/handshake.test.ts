@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { loadConfig } from "../src/config.js";
 import { createApp } from "../src/http/app.js";
 import { MockSalesforce } from "../src/salesforce/mock.js";
+import { MockSlack } from "../src/slack/mock.js";
+import { MockGong } from "../src/gong/mock.js";
 import { Roster } from "../src/roster.js";
 
 const PUBLIC_URL = "https://mcp.example.com/mcp";
@@ -31,6 +33,8 @@ describe("OAuth resource-server handshake", () => {
     });
     const app = createApp(cfg, {
       sf: new MockSalesforce(),
+      slack: new MockSlack(),
+      gong: new MockGong(),
       audit: () => {},
       roster: new Roster(rosterFile([])),
     });
@@ -88,6 +92,8 @@ describe("roster gate", () => {
     const denials: string[] = [];
     const app = createApp(cfg, {
       sf: new MockSalesforce(),
+      slack: new MockSlack(),
+      gong: new MockGong(),
       audit: (e) => {
         if (e.outcome === "denied") denials.push(e.actor);
       },

@@ -3,12 +3,16 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { Config } from "../config.js";
 import type { AuditSink } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
+import type { SlackClient } from "../slack/types.js";
+import type { GongClient } from "../gong/types.js";
 import { Roster } from "../roster.js";
 import { bearerAuth, metadataUrl } from "./auth.js";
 import { buildServer } from "../mcp/server.js";
 
 export interface AppDeps {
   sf: SalesforceClient;
+  slack: SlackClient;
+  gong: GongClient;
   audit: AuditSink;
   roster?: Roster;
 }
@@ -40,6 +44,8 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
     const server = buildServer({
       actor: res.locals.actor as string,
       sf: deps.sf,
+      slack: deps.slack,
+      gong: deps.gong,
       audit: deps.audit,
     });
     const transport = new StreamableHTTPServerTransport({

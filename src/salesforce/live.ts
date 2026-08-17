@@ -29,6 +29,7 @@ interface SoqlRecord {
   LastModifiedDate: string | null;
   NextStep: string | null;
   Description: string | null;
+  Slack_Channel_Id__c: string | null;
 }
 
 const TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -110,6 +111,7 @@ export class LiveSalesforce implements SalesforceClient {
       lastModified: r.LastModifiedDate,
       nextStep: r.NextStep,
       description: r.Description,
+      slackChannelId: r.Slack_Channel_Id__c,
     };
   }
 

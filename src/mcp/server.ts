@@ -1,12 +1,26 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AuditSink } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
+import type { SlackClient } from "../slack/types.js";
+import type { GongClient } from "../gong/types.js";
 import { findDeal, findDealDescription, findDealInput } from "../tools/findDeal.js";
 import { dealStatus, dealStatusDescription, dealStatusInput } from "../tools/dealStatus.js";
+import {
+  dealChannelActivity,
+  dealChannelActivityDescription,
+  dealChannelActivityInput,
+} from "../tools/dealChannelActivity.js";
+import {
+  callDetails,
+  callDetailsDescription,
+  callDetailsInput,
+} from "../tools/callDetails.js";
 
 export interface RequestContext {
   actor: string;
   sf: SalesforceClient;
+  slack: SlackClient;
+  gong: GongClient;
   audit: AuditSink;
 }
 
@@ -77,6 +91,30 @@ export function buildServer(ctx: RequestContext): McpServer {
         ["salesforce"],
         { opportunityId: args.opportunityId },
         () => dealStatus(ctx.sf, args),
+      ),
+  );
+
+  server.registerTool(
+    "deal_channel_activity",
+    { description: dealChannelActivityDescription, inputSchema: dealChannelActivityInput },
+    (args) =>
+      run(
+        "deal_channel_activity",
+        ["salesforce", "slack"],
+        { opportunityId: args.opportunityId },
+        () => dealChannelActivity(ctx.sf, ctx.slack, args),
+      ),
+  );
+
+  server.registerTool(
+    "call_details",
+    { description: callDetailsDescription, inputSchema: callDetailsInput },
+    (args) =>
+      run(
+        "call_details",
+        ["salesforce", "gong"],
+        { opportunityId: args.opportunityId },
+        () => callDetails(ctx.sf, ctx.gong, args),
       ),
   );
 

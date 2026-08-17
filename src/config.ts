@@ -31,6 +31,26 @@ const schema = z
     // volume/env — it must never live in the repo or an image layer.
     SF_PRIVATE_KEY: z.string().optional(),
 
+    // "mock" = fixture-backed Slack for local dev and tests.
+    // "live" = bot token installed once to the workspace, read-only.
+    SLACK_MODE: z.enum(["mock", "live"]).default("mock"),
+    SLACK_BOT_TOKEN: z.string().optional(),
+
+    // "mock" = fixture-backed Gong for local dev and tests.
+    // "live" = read-only API key (access key + secret) issued to this service.
+    GONG_MODE: z.enum(["mock", "live"]).default("mock"),
+    GONG_ACCESS_KEY: z.string().optional(),
+    GONG_ACCESS_KEY_SECRET: z.string().optional(),
+    // Decision D in one switch. "metadata" asks Gong for who/when/how long and
+    // nothing spoken; "summaries" additionally requests the call brief and may
+    // only be set once the BAA/retention answer is in hand (Gate 04).
+    GONG_CONTENT: z.enum(["metadata", "summaries"]).default("metadata"),
+    GONG_LOOKBACK_DAYS: z.coerce.number().int().positive().max(730).default(180),
+    // Deliberately a separate, explicitly-typed acknowledgement rather than a
+    // second meaning for GONG_CONTENT: turning on call content should take two
+    // hands, and should read as an assertion someone made.
+    GONG_PHI_REVIEW_SIGNED_OFF: z.enum(["true", "false"]).default("false"),
+
     ROSTER_PATH: z.string().default("roster.json"),
     NODE_ENV: z.string().default("development"),
   })
@@ -60,6 +80,35 @@ const schema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "SF_MODE=live requires SF_CLIENT_ID, SF_USERNAME, SF_PRIVATE_KEY",
+      });
+    }
+    if (cfg.SLACK_MODE === "live" && !cfg.SLACK_BOT_TOKEN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "SLACK_MODE=live requires SLACK_BOT_TOKEN",
+      });
+    }
+    if (
+      cfg.GONG_MODE === "live" &&
+      (!cfg.GONG_ACCESS_KEY || !cfg.GONG_ACCESS_KEY_SECRET)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "GONG_MODE=live requires GONG_ACCESS_KEY and GONG_ACCESS_KEY_SECRET",
+      });
+    }
+    // Gate 04 is a startup assertion, not a code path: real call summaries
+    // cannot be turned on without someone also declaring the review signed off.
+    if (
+      cfg.GONG_MODE === "live" &&
+      cfg.GONG_CONTENT === "summaries" &&
+      cfg.GONG_PHI_REVIEW_SIGNED_OFF !== "true"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "GONG_CONTENT=summaries against live Gong requires " +
+          "GONG_PHI_REVIEW_SIGNED_OFF=true (PRD decision D / gate 04)",
       });
     }
   });

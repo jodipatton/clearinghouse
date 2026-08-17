@@ -9,27 +9,31 @@ never leave GCP.
 
 PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
 
-## Status — week-one scaffold
-
-Implements the Weeks 1–2 slice of the PRD plan:
+## Status — Weeks 1–4 slice
 
 - **OAuth 2.1 resource server** — RFC 9728 metadata at
   `/.well-known/oauth-protected-resource`, the 401 + `WWW-Authenticate:
   resource_metadata` handshake Claude requires, JWT verification against the
   rented authorization server via JWKS.
 - **`find_deal`** — fuzzy deal name → real Salesforce opportunities.
-- **`deal_status`** — Salesforce-only for now; its `coverage` field says so
-  explicitly instead of returning a silently thin answer.
+- **`deal_status`** — the Salesforce picture of one deal. Its `coverage` field
+  points at the two tools below rather than returning a silently thin answer.
+- **`deal_channel_activity`** — recent messages in the one Slack channel mapped
+  to a deal (`Slack_Channel_Id__c` on the Opportunity). No workspace-wide
+  search; Slack Connect guests are flagged `external`, not hidden.
+- **`call_details`** — recent Gong calls on a deal: when, how long, who was on
+  them, and Gong's brief **only once Decision D is answered** (see below).
 - **Roster gate** — Git-backed `roster.json`, deny by default, denial audited.
 - **Audit** — every tool call logged as one JSON line (actor, tool, args,
   systems, bytes, latency) for the Cloud Logging → BigQuery sink.
 - **Injection guards** — typed enumerated inputs, one escape path for SOQL,
   Salesforce Ids validated by shape, LIMIT capped server-side; free-text
-  fields returned inside a labeled external-data envelope.
+  fields (deal descriptions, Slack messages, Gong call titles and briefs)
+  returned inside a labeled external-data envelope.
 
-Not yet built (Weeks 3–5): Gong nightly index + `call_details`,
-Slack deal channels, `recent_activity`, `pipeline_snapshot`, `coverage_check`
-as its own tool, per-person budgets, directory sync.
+Not yet built (Week 5+): the Gong nightly index that replaces the window scan,
+`recent_activity`, `pipeline_snapshot`, `coverage_check` as its own tool,
+per-person budgets, directory sync.
 
 ## Run locally
 
@@ -51,8 +55,8 @@ start when `NODE_ENV=production`.
 | --- | --- | --- |
 | 01 Fake-"Claude" phishing | DCR off, one pinned client, one redirect URI (`https://claude.ai/api/mcp/auth_callback`) | Auth-vendor dashboard — two settings, do this the day the tenant exists |
 | 02 Lookalike connector URL | Host on `1uphealth.com` itself; connector-adding restricted to Claude org admins | Decision A + Claude admin console |
-| 03 Gong tenant walk | Deal-index-only `call_details` | Weeks 3–4, not in this scaffold |
-| 04 PHI on sales calls | BAA/retention confirmation + redaction pass | Decision D — answer before Gong lands |
+| 03 Gong tenant walk | `call_details` reaches calls only through a resolved Salesforce opportunity; `GongClient` exposes no list-all and no by-call-Id path, and the live window scan is page-capped | `src/gong/types.ts`, `src/gong/live.ts` |
+| 04 PHI on sales calls | `GONG_CONTENT=metadata` means the call brief is never *requested* — no redaction pass is load-bearing. Turning it on needs `GONG_PHI_REVIEW_SIGNED_OFF=true` or the server refuses to start | Decision D — `src/config.ts`, still unanswered |
 | 05 Salesforce signing key | JWT bearer as one pre-authorized integration user (`src/salesforce/live.ts`); key generated in Cloud Shell, never a laptop; connected app locked to that user + static egress IP | Code + Salesforce setup runbook below |
 | 06 Roster misconfiguration | Git-backed `roster.json`, service reads only, deny by default, denials audited | `src/roster.ts`, `src/http/auth.ts` |
 
@@ -68,6 +72,25 @@ start when `NODE_ENV=production`.
    static egress IP (via Serverless VPC connector + Cloud NAT).
 4. Put `sf.key` in Secret Manager as `SF_PRIVATE_KEY`; delete the local copy.
 5. Set `SF_MODE=live`, `SF_CLIENT_ID` (consumer key), `SF_USERNAME`.
+
+## Gong live setup (Gates 03 + 04 runbook)
+
+1. Gong admin → API key for this service only; store both halves in Secret
+   Manager as `GONG_ACCESS_KEY` / `GONG_ACCESS_KEY_SECRET`.
+2. Leave `GONG_CONTENT=metadata`. In this mode the content selector sent to
+   Gong omits `content.brief` entirely, so no spoken content reaches this
+   process, its memory, or its logs — the gate is the request, not a filter.
+3. **Before flipping to `GONG_CONTENT=summaries`:** confirm the BAA and
+   retention terms covering call recordings (Decision D), then set
+   `GONG_PHI_REVIEW_SIGNED_OFF=true`. Live Gong refuses to boot with summaries
+   on while that is false — deliberately two hands, not one flag.
+4. **Verify the response shape first.** `src/gong/live.ts` follows Gong's
+   documented `/v2/calls/extensive` payload (`metaData`,
+   `parties[].affiliation`, `context[].objects[]`) but has never run against
+   1upHealth's tenant. Check one real call before `GONG_MODE=live`.
+5. `GONG_LOOKBACK_DAYS` (default 180) bounds the window scan. This is the
+   direct-read stand-in for the PRD's nightly index; when call volume makes
+   the scan slow, the index lands behind the same `GongClient` interface.
 
 ## Auth vendor setup (Decision C — vendor-agnostic checklist)
 
@@ -103,7 +126,7 @@ Whichever of WorkOS AuthKit / Auth0 / Stytch / Descope is chosen, on
 | A | Domain | `mcp.1uphealth.com` + `auth.1uphealth.com`; register lookalikes | `PUBLIC_URL`, `AUTH_ISSUER` |
 | B | One access tier or two | One tier for v1, stated at consent | roster stays one flat list |
 | C | Auth vendor | Any of the four; keep DNS ours | `AUTH_ISSUER`/`AUTH_JWKS_URL` only |
-| D | PHI / BAA gate | Confirm Claude-plan retention terms + GCP BAA **before Gong lands**; only decision that can change the product | blocks Weeks 3–4, not this scaffold |
+| D | PHI / BAA gate | Confirm Claude-plan retention terms + GCP BAA; only decision that can change the product | `GONG_CONTENT` + `GONG_PHI_REVIEW_SIGNED_OFF`. **Still open** — Gong ships metadata-only until it is answered |
 | E | Roster ownership | One restricted Google group, synced by CI | replaces hand-edits to `roster.json` |
 
 ## Deliberately not building
