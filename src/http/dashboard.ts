@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import type { AuditSink, RecordedAuditEvent } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
 import type { SlackClient } from "../slack/types.js";
@@ -6,7 +7,14 @@ import type { GongClient } from "../gong/types.js";
 import type { PlanhatClient } from "../planhat/types.js";
 import type { Roster } from "../roster.js";
 import { runPipelinePulse } from "../routines/pipelinePulse.js";
+import { recentActivity, recentActivityInput } from "../tools/recentActivity.js";
+import { coverageCheck, coverageCheckInput } from "../tools/coverageCheck.js";
 import { DASHBOARD_HTML } from "./dashboardPage.js";
+
+// Reuses each MCP tool's own zod input shape for query-string validation, so
+// the dashboard can never silently drift from what Claude itself enforces.
+const recentActivitySchema = z.object(recentActivityInput);
+const coverageCheckSchema = z.object(coverageCheckInput);
 
 export interface DashboardDeps {
   sf: SalesforceClient;
@@ -48,10 +56,13 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
         res.json(payload);
       } catch (err) {
         deps.audit({ actor, tool, args: {}, systems, outcome: "error", ms: Date.now() - started });
-        const status = err instanceof RangeError ? 400 : 500;
-        res
-          .status(status)
-          .json({ error: err instanceof RangeError ? err.message : "request failed" });
+        const badInput = err instanceof RangeError || err instanceof z.ZodError;
+        const message = err instanceof RangeError
+          ? err.message
+          : err instanceof z.ZodError
+            ? err.issues.map((i) => i.message).join("; ")
+            : "request failed";
+        res.status(badInput ? 400 : 500).json({ error: message });
       }
     };
 
@@ -129,6 +140,22 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
         };
       },
     ),
+  );
+
+  router.get(
+    "/api/recent-activity",
+    withAudit("dashboard.recent_activity", ["salesforce", "slack", "gong"], async (req) => {
+      const args = recentActivitySchema.parse(req.query);
+      return recentActivity(deps.sf, deps.slack, deps.gong, args);
+    }),
+  );
+
+  router.get(
+    "/api/coverage-check",
+    withAudit("dashboard.coverage_check", ["salesforce", "gong"], async (req) => {
+      const args = coverageCheckSchema.parse(req.query);
+      return coverageCheck(deps.sf, deps.gong, args);
+    }),
   );
 
   router.get(

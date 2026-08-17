@@ -112,6 +112,45 @@ describe("GET /dashboard/api/deals/:id", () => {
   });
 });
 
+describe("GET /dashboard/api/recent-activity", () => {
+  it("proxies the recent_activity tool, defaulting days to 14", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/recent-activity`);
+    const body = await res.json();
+    server.close();
+    expect(res.status).toBe(200);
+    expect(body.windowDays).toBe(14);
+    expect(Array.isArray(body.deals)).toBe(true);
+  });
+
+  it("returns 400 for an invalid days value instead of 500", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/recent-activity?days=-5`);
+    server.close();
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /dashboard/api/coverage-check", () => {
+  it("proxies the coverage_check tool", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/coverage-check`);
+    const body = await res.json();
+    server.close();
+    expect(res.status).toBe(200);
+    expect(body.scannedCount).toBe(2); // Sunrise (Closed Won) excluded
+    expect(body.flaggedCount).toBe(1);
+  });
+
+  it("filters by owner name", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/coverage-check?ownerName=Sam`);
+    const body = await res.json();
+    server.close();
+    expect(body.scannedCount).toBe(1); // only BigCo (Sam Okafor) is open + owned by Sam
+  });
+});
+
 describe("GET /dashboard/api/roster", () => {
   it("lists the roster's members", async () => {
     const { server, base } = startServer();

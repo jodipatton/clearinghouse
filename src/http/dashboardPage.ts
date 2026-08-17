@@ -129,6 +129,8 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
 
   <nav class="tabs">
     <button data-tab="lookup" class="active">Deal lookup</button>
+    <button data-tab="activity">Recent activity</button>
+    <button data-tab="coverage">Coverage check</button>
     <button data-tab="pulse">Pipeline-pulse</button>
     <button data-tab="admin">Admin &amp; audit</button>
   </nav>
@@ -146,6 +148,29 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       <table><tbody id="dealResultsBody"></tbody></table>
     </div>
     <div class="card" id="dealDetailCard" style="display:none"></div>
+  </section>
+
+  <section class="panel" id="panel-activity">
+    <div class="card">
+      <div class="row">
+        <input type="text" id="activityOwner" placeholder="Filter by owner, e.g. &quot;Dana&quot; (optional)" />
+        <input type="text" id="activityDays" value="14" style="max-width:90px" />
+        <button class="action" id="activityRunBtn">Show recent activity</button>
+      </div>
+      <p class="hint">Days back that counts as "recent." No deal Id needed — this is recent_activity across every deal (or one owner's).</p>
+    </div>
+    <div class="card" id="activityResultsCard" style="display:none"></div>
+  </section>
+
+  <section class="panel" id="panel-coverage">
+    <div class="card">
+      <div class="row">
+        <input type="text" id="coverageOwner" placeholder="Filter by owner, e.g. &quot;Dana&quot; (optional)" />
+        <button class="action" id="coverageRunBtn">Run coverage check</button>
+      </div>
+      <p class="hint">Open deals only. Flags: no Slack channel mapped, no next step, no Gong call on file.</p>
+    </div>
+    <div class="card" id="coverageResultsCard" style="display:none"></div>
   </section>
 
   <section class="panel" id="panel-pulse">
@@ -299,6 +324,78 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
         dealDetailCard.appendChild(line);
       });
     }
+  }
+
+  // ---------- recent activity ----------
+  document.getElementById("activityRunBtn").addEventListener("click", function () {
+    var owner = document.getElementById("activityOwner").value.trim();
+    var days = document.getElementById("activityDays").value.trim() || "14";
+    var params = "days=" + encodeURIComponent(days);
+    if (owner) params += "&ownerName=" + encodeURIComponent(owner);
+    fetch("/dashboard/api/recent-activity?" + params)
+      .then(function (r) { return r.json(); })
+      .then(renderActivity);
+  });
+
+  function renderActivity(body) {
+    var card = document.getElementById("activityResultsCard");
+    card.innerHTML = "";
+    card.style.display = "block";
+    if (body.error) {
+      card.appendChild(el("p", { class: "empty" }, [body.error]));
+      return;
+    }
+    card.appendChild(el("p", { class: "section-label" }, [body.dealCount + " deal(s) touched in the last " + body.windowDays + " day(s)"]));
+    if (body.deals.length === 0) {
+      card.appendChild(el("p", { class: "empty" }, ["Nothing recent in this window."]));
+      return;
+    }
+    var table = el("table", {}, [
+      el("thead", {}, [el("tr", {}, [el("th", {}, ["Deal"]), el("th", {}, ["Owner"]), el("th", {}, ["Days ago"]), el("th", {}, ["Slack msgs"]), el("th", {}, ["Gong calls"])])]),
+    ]);
+    var tbody = el("tbody", {}, []);
+    body.deals.forEach(function (d) {
+      tbody.appendChild(el("tr", {}, [td(d.name), td(d.owner), td(d.daysSinceModified), td(d.slackMessagesInWindow), td(d.gongCallsInWindow)]));
+    });
+    table.appendChild(tbody);
+    card.appendChild(table);
+  }
+
+  // ---------- coverage check ----------
+  document.getElementById("coverageRunBtn").addEventListener("click", function () {
+    var owner = document.getElementById("coverageOwner").value.trim();
+    var params = owner ? "ownerName=" + encodeURIComponent(owner) : "";
+    fetch("/dashboard/api/coverage-check" + (params ? "?" + params : ""))
+      .then(function (r) { return r.json(); })
+      .then(renderCoverage);
+  });
+
+  function renderCoverage(body) {
+    var card = document.getElementById("coverageResultsCard");
+    card.innerHTML = "";
+    card.style.display = "block";
+    if (body.error) {
+      card.appendChild(el("p", { class: "empty" }, [body.error]));
+      return;
+    }
+    card.appendChild(el("p", { class: "section-label" }, [body.flaggedCount + " of " + body.scannedCount + " open deal(s) flagged"]));
+    if (body.deals.length === 0) {
+      card.appendChild(el("p", { class: "empty" }, ["Nothing flagged — every open deal scanned has full coverage."]));
+      return;
+    }
+    var table = el("table", {}, [
+      el("thead", {}, [el("tr", {}, [el("th", {}, ["Deal"]), el("th", {}, ["Owner"]), el("th", {}, ["Missing"])])]),
+    ]);
+    var tbody = el("tbody", {}, []);
+    body.deals.forEach(function (d) {
+      var missing = [];
+      if (d.missing.slackChannel) missing.push("Slack channel");
+      if (d.missing.nextStep) missing.push("next step");
+      if (d.missing.gongCall) missing.push("Gong call");
+      tbody.appendChild(el("tr", {}, [td(d.name), td(d.owner), td(missing.join(", "))]));
+    });
+    table.appendChild(tbody);
+    card.appendChild(table);
   }
 
   // ---------- pipeline-pulse ----------

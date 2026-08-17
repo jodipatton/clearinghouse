@@ -156,18 +156,25 @@ conversation. For anyone who wants to look something up directly, or for
 demoing/debugging without going through Claude at all. Vanilla JS, no build
 step, no separate deploy.
 
-Three tabs:
+Five tabs:
 
 - **Deal lookup** — search by name (`find_deal`), pick a result, see the same
   combined Salesforce + Gong + Slack picture `deal_status` /
   `deal_channel_activity` / `call_details` give Claude.
+- **Recent activity** — `recent_activity` as a form: an owner filter and a
+  day count instead of a deal Id.
+- **Coverage check** — `coverage_check` as a form: which open deals are
+  missing a Slack channel, a next step, or a Gong call.
 - **Pipeline-pulse** — a "Run pipeline-pulse (dry run)" button that lists the
   fictions it finds and the Planhat projects it would propose. This button
   **always** forces `dryRun: true`, regardless of `ROUTINES_DRY_RUN` in
   config — a person clicking a button in a browser should never be the thing
   that writes to Planhat; only the Cloud Scheduler-triggered
   `/routines/pipeline-pulse` path can do that, and only once (1) in that
-  section's runbook is done.
+  section's runbook is done. (No separate tab for `pipeline_snapshot` —
+  same underlying scan, so this tab already covers it; `pipeline_snapshot`
+  exists as its own MCP tool because Claude needs a read-only-only version
+  with no proposed-projects section at all.)
 - **Admin & audit** — the roster's members, and a live tail of the most
   recent audit events (in-memory, capped, lost on restart — the durable trail
   is still Cloud Logging → BigQuery; this is a convenience view, not a second
