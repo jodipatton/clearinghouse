@@ -60,9 +60,7 @@ export async function recentActivity(
 
   const deals = await Promise.all(
     top.map(async (o) => {
-      const messages = o.slackChannelId
-        ? await slack.getChannelHistory(o.slackChannelId, 20)
-        : [];
+      const messages = await slack.getMessagesForOpportunity(o.id, 20);
       const calls = await gong.getCallsForOpportunity(o.id, 5);
       return {
         id: o.id,

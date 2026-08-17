@@ -18,9 +18,11 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
 - **`find_deal`** — fuzzy deal name → real Salesforce opportunities.
 - **`deal_status`** — the Salesforce picture of one deal. Its `coverage` field
   points at the two tools below rather than returning a silently thin answer.
-- **`deal_channel_activity`** — recent messages in the one Slack channel mapped
-  to a deal (`Slack_Channel_Id__c` on the Opportunity). No workspace-wide
-  search; Slack Connect guests are flagged `external`, not hidden.
+- **`deal_channel_activity`** — a deal's synced Slack activity. Not a
+  separate Slack API: messages arrive in Salesforce as
+  `slackv2__Slack_Message__c` records joined to the Opportunity, so there's
+  no channel-Id concept and no separate credential. External senders are
+  flagged, not hidden — see the live-setup note below on how that's inferred.
 - **`call_details`** — recent Gong calls on a deal: when, how long, who was on
   them, and Gong's brief **only once Decision D is answered** (see below).
 - **`recent_activity`** — no deal Id required: the most recently modified
@@ -28,7 +30,7 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   messages and Gong calls landed on it in the same window. For "what should I
   catch up on."
 - **`coverage_check`** — bulk data-hygiene sweep across open deals: which ones
-  have no Slack channel mapped, no next step, or no Gong call on file.
+  have no Slack activity synced, no next step, or no Gong call on file.
   `deal_status`'s own `coverage` field answers this one deal at a time; this
   is the many-deals-at-once version.
 - **`pipeline_snapshot`** — the read-only, Claude-facing sibling of
@@ -75,13 +77,18 @@ start when `NODE_ENV=production`.
 | 02 Lookalike connector URL | Host on `1uphealth.com` itself; connector-adding restricted to Claude org admins | Decision A + Claude admin console |
 | 03 Gong tenant walk | `call_details` reaches calls only through a resolved Salesforce opportunity; `GongClient` exposes no list-all and no by-call-Id path, and the live window scan is page-capped | `src/gong/types.ts`, `src/gong/live.ts` |
 | 04 PHI on sales calls | `GONG_CONTENT=metadata` means the call brief is never *requested* — no redaction pass is load-bearing. Turning it on needs `GONG_PHI_REVIEW_SIGNED_OFF=true` or the server refuses to start | Decision D — `src/config.ts`, still unanswered |
-| 05 Salesforce signing key | JWT bearer as one pre-authorized integration user (`src/salesforce/live.ts`); key generated in Cloud Shell, never a laptop; connected app locked to that user + static egress IP | Code + Salesforce setup runbook below |
+| 05 Salesforce signing key | JWT bearer as one pre-authorized integration user (`src/salesforce/client.ts`, shared by `LiveSalesforce` and `LiveSlack`); key generated in Cloud Shell, never a laptop; connected app locked to that user + static egress IP | Code + Salesforce setup runbook below |
 | 06 Roster misconfiguration | Git-backed `roster.json`, service reads only, deny by default, denials audited | `src/roster.ts`, `src/http/auth.ts` |
 
 ## Salesforce live setup (Gate 05 runbook)
 
 1. Create integration user `clearinghouse@1uphealth.com` with a read-only
-   profile scoped to Opportunity + Account.
+   profile scoped to Opportunity + Account, plus **read on
+   `slackv2__Slack_Message__c`** if `SLACK_MODE=live` — Slack activity is
+   synced in by a Slack managed package, not a separate bot API, so this one
+   connection covers both. (`isExternal` on a message is a heuristic —
+   whether it resolved to a Contact/Lead, not a real field. Verify against
+   real messages before relying on it.)
 2. In **Cloud Shell** (so the key never touches a laptop):
    `openssl req -x509 -newkey rsa:2048 -nodes -keyout sf.key -out sf.crt -days 730`
 3. Connected app: upload `sf.crt`, enable OAuth, scopes `api`; **Admin
@@ -163,8 +170,8 @@ Five tabs:
   `deal_channel_activity` / `call_details` give Claude.
 - **Recent activity** — `recent_activity` as a form: an owner filter and a
   day count instead of a deal Id.
-- **Coverage check** — `coverage_check` as a form: which open deals are
-  missing a Slack channel, a next step, or a Gong call.
+- **Coverage check** — `coverage_check` as a form: which open deals have no
+  Slack activity synced, no next step, or no Gong call.
 - **Pipeline-pulse** — a "Run pipeline-pulse (dry run)" button that lists the
   fictions it finds and the Planhat projects it would propose. This button
   **always** forces `dryRun: true`, regardless of `ROUTINES_DRY_RUN` in

@@ -7,15 +7,15 @@ const sf = new MockSalesforce();
 const slack = new MockSlack();
 
 describe("deal_channel_activity", () => {
-  it("returns the mapped channel's recent messages, external ones flagged", async () => {
+  it("returns a deal's synced Slack messages, external ones flagged", async () => {
     const result = await dealChannelActivity(sf, slack, {
-      opportunityId: "006Ru00000AbCdEfGh",
+      opportunityId: "006Ru00000AbCdEfGh", // MMM Health
     });
-    expect(result.channel).toBe("C0MMMDEAL1");
     const messages = result.messages as Record<string, unknown>[];
     expect(messages.length).toBeGreaterThan(0);
     expect(messages.some((m) => m.external === true)).toBe(true);
     expect(messages.some((m) => m.external === false)).toBe(true);
+    expect(result.coverage).toBe("answered");
   });
 
   it("wraps message text in the external-data envelope", async () => {
@@ -26,12 +26,12 @@ describe("deal_channel_activity", () => {
     expect(messages[0].text).toContain("[external-data source=slack:Message");
   });
 
-  it("says so, not silently, when no channel is mapped", async () => {
+  it("says so, not silently, when no Slack activity is synced for the deal", async () => {
     const result = await dealChannelActivity(sf, slack, {
-      opportunityId: "006Ru00000JkLmNoPq",
+      opportunityId: "006Ru00000JkLmNoPq", // BigCo, no fixture entry
     });
     expect(result.messages).toEqual([]);
-    expect(result.coverage).toContain("no Slack channel is mapped");
+    expect(result.coverage).toContain("no Slack activity synced");
   });
 
   it("reports an unknown id without erroring", async () => {

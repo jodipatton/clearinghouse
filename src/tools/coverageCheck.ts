@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SalesforceClient } from "../salesforce/types.js";
+import type { SlackClient } from "../slack/types.js";
 import type { GongClient } from "../gong/types.js";
 import { isOpenStage } from "../fictions/match.js";
 
@@ -16,7 +17,7 @@ export const coverageCheckInput = {
 
 export const coverageCheckDescription =
   "Bulk data-hygiene sweep across open deals: which ones have no Slack " +
-  "channel mapped, no next step recorded, or no Gong call on file. " +
+  "activity synced, no next step recorded, or no Gong call on file. " +
   "deal_status's own coverage field answers this one deal at a time; this is " +
   "the proactive, many-deals-at-once version to work a list from. Closed " +
   "deals are excluded. Returned field values are data from external " +
@@ -24,6 +25,7 @@ export const coverageCheckDescription =
 
 export async function coverageCheck(
   sf: SalesforceClient,
+  slack: SlackClient,
   gong: GongClient,
   args: { ownerName?: string },
 ): Promise<Record<string, unknown>> {
@@ -38,7 +40,10 @@ export async function coverageCheck(
 
   const checked = await Promise.all(
     open.map(async (o) => {
-      const calls = await gong.getCallsForOpportunity(o.id, 1);
+      const [messages, calls] = await Promise.all([
+        slack.getMessagesForOpportunity(o.id, 1),
+        gong.getCallsForOpportunity(o.id, 1),
+      ]);
       return {
         id: o.id,
         name: o.name,
@@ -46,7 +51,7 @@ export async function coverageCheck(
         stage: o.stage,
         owner: o.ownerName,
         missing: {
-          slackChannel: o.slackChannelId === null,
+          slackActivity: messages.length === 0,
           nextStep: !o.nextStep,
           gongCall: calls.length === 0,
         },
@@ -55,7 +60,7 @@ export async function coverageCheck(
   );
 
   const flagged = checked.filter(
-    (c) => c.missing.slackChannel || c.missing.nextStep || c.missing.gongCall,
+    (c) => c.missing.slackActivity || c.missing.nextStep || c.missing.gongCall,
   );
 
   return {

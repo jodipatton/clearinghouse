@@ -14,7 +14,6 @@ export const FIXTURES: Opportunity[] = [
     nextStep: "Resolve data-retention clause in BAA redlines",
     description:
       "Payer interoperability expansion. Counsel returned BAA redlines; pricing pushback on last call.",
-    slackChannelId: "C0MMMDEAL1",
   },
   {
     id: "006Ru00000JkLmNoPq",
@@ -29,7 +28,6 @@ export const FIXTURES: Opportunity[] = [
     lastModified: "2026-07-01T00:00:00Z",
     nextStep: "Security review call with their CISO",
     description: "CISO evaluating FHIR endpoint architecture.",
-    slackChannelId: null,
   },
   {
     id: "006Ru00000RsTuVwXy",
@@ -42,6 +40,5 @@ export const FIXTURES: Opportunity[] = [
     lastModified: "2026-07-01T09:00:00Z",
     nextStep: null,
     description: null,
-    slackChannelId: null,
   },
 ];

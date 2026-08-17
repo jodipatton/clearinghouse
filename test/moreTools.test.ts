@@ -60,17 +60,17 @@ describe("recent_activity", () => {
 });
 
 describe("coverage_check", () => {
-  it("flags BigCo (no Slack channel, no Gong call) but not MMM (fully covered)", async () => {
-    const result = await coverageCheck(new MockSalesforce(), new MockGong(), {});
+  it("flags BigCo (no Slack activity, no Gong call) but not MMM (fully covered)", async () => {
+    const result = await coverageCheck(new MockSalesforce(), new MockSlack(), new MockGong(), {});
     expect(result.scannedCount).toBe(2); // Sunrise is Closed Won, excluded
     expect(result.flaggedCount).toBe(1);
     const deals = result.deals as { id: string; missing: Record<string, boolean> }[];
     expect(deals[0].id).toBe("006Ru00000JkLmNoPq");
-    expect(deals[0].missing).toEqual({ slackChannel: true, nextStep: false, gongCall: true });
+    expect(deals[0].missing).toEqual({ slackActivity: true, nextStep: false, gongCall: true });
   });
 
   it("excludes closed deals even when they'd otherwise be flagged", async () => {
-    const result = await coverageCheck(new MockSalesforce(), new MockGong(), {});
+    const result = await coverageCheck(new MockSalesforce(), new MockSlack(), new MockGong(), {});
     const deals = result.deals as { id: string }[];
     expect(deals.some((d) => d.id === "006Ru00000RsTuVwXy")).toBe(false); // Sunrise
   });

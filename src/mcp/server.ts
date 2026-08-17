@@ -153,9 +153,9 @@ export function buildServer(ctx: RequestContext): McpServer {
     (args) =>
       run(
         "coverage_check",
-        ["salesforce", "gong"],
+        ["salesforce", "slack", "gong"],
         { ownerName: args.ownerName },
-        () => coverageCheck(ctx.sf, ctx.gong, args),
+        () => coverageCheck(ctx.sf, ctx.slack, ctx.gong, args),
       ),
   );
 

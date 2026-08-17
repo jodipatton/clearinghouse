@@ -100,9 +100,7 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
         }
 
         const calls = await deps.gong.getCallsForOpportunity(opp.id, 5);
-        const messages = opp.slackChannelId
-          ? await deps.slack.getChannelHistory(opp.slackChannelId, 20)
-          : [];
+        const messages = await deps.slack.getMessagesForOpportunity(opp.id, 20);
 
         return {
           deal: {
@@ -129,7 +127,6 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
             withheld: deps.gong.contentMode === "metadata",
           },
           slack: {
-            channel: opp.slackChannelId,
             messages: messages.map((m) => ({
               at: m.ts,
               from: m.userDisplay,
@@ -152,9 +149,9 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
 
   router.get(
     "/api/coverage-check",
-    withAudit("dashboard.coverage_check", ["salesforce", "gong"], async (req) => {
+    withAudit("dashboard.coverage_check", ["salesforce", "slack", "gong"], async (req) => {
       const args = coverageCheckSchema.parse(req.query);
-      return coverageCheck(deps.sf, deps.gong, args);
+      return coverageCheck(deps.sf, deps.slack, deps.gong, args);
     }),
   );
 

@@ -91,7 +91,6 @@ describe("GET /dashboard/api/deals/:id", () => {
     expect(body.calls.items).toHaveLength(2);
     expect(body.calls.withheld).toBe(true); // GONG_CONTENT defaults to metadata
     expect(body.calls.items[0].summary).toBeNull();
-    expect(body.slack.channel).toBe("C0MMMDEAL1");
     expect(body.slack.messages.length).toBeGreaterThan(0);
   });
 

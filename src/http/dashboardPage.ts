@@ -168,7 +168,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
         <input type="text" id="coverageOwner" placeholder="Filter by owner, e.g. &quot;Dana&quot; (optional)" />
         <button class="action" id="coverageRunBtn">Run coverage check</button>
       </div>
-      <p class="hint">Open deals only. Flags: no Slack channel mapped, no next step, no Gong call on file.</p>
+      <p class="hint">Open deals only. Flags: no Slack activity synced, no next step, no Gong call on file.</p>
     </div>
     <div class="card" id="coverageResultsCard" style="display:none"></div>
   </section>
@@ -307,11 +307,9 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       }
     }
 
-    dealDetailCard.appendChild(el("p", { class: "section-label", style: "margin-top:18px" }, ["Slack activity" + (body.slack.channel ? " — " + body.slack.channel : "")]));
-    if (!body.slack.channel) {
-      dealDetailCard.appendChild(el("p", { class: "empty" }, ["No Slack channel mapped to this deal."]));
-    } else if (body.slack.messages.length === 0) {
-      dealDetailCard.appendChild(el("p", { class: "empty" }, ["Channel is mapped but has no recent messages."]));
+    dealDetailCard.appendChild(el("p", { class: "section-label", style: "margin-top:18px" }, ["Slack activity"]));
+    if (body.slack.messages.length === 0) {
+      dealDetailCard.appendChild(el("p", { class: "empty" }, ["No Slack activity synced for this deal."]));
     } else {
       body.slack.messages.forEach(function (m) {
         var fromChildren = [m.from];
@@ -389,7 +387,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     var tbody = el("tbody", {}, []);
     body.deals.forEach(function (d) {
       var missing = [];
-      if (d.missing.slackChannel) missing.push("Slack channel");
+      if (d.missing.slackActivity) missing.push("Slack activity");
       if (d.missing.nextStep) missing.push("next step");
       if (d.missing.gongCall) missing.push("Gong call");
       tbody.appendChild(el("tr", {}, [td(d.name), td(d.owner), td(missing.join(", "))]));

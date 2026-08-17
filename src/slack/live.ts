@@ -1,64 +1,45 @@
 import type { SlackClient, SlackMessage } from "./types.js";
+import type { SalesforceRestClient } from "../salesforce/client.js";
+import { opportunitySlackMessagesSoql } from "../salesforce/soql.js";
+
+interface SoqlRecord {
+  Id: string;
+  slackv2__Content__c: string | null;
+  slackv2__User_Name__c: string | null;
+  slackv2__Time_Stamp__c: string | null;
+  slackv2__Contact__c: string | null;
+  slackv2__Lead__c: string | null;
+}
 
 /**
- * Bot token installed once to the workspace, read-only, invited only into
- * the channels it needs to read. No workspace-wide search: this client only
- * ever fetches history for one channel Id the caller already resolved.
+ * Not a Slack API client at all: Slack messages are synced into Salesforce
+ * by a Slack managed package (slackv2__Slack_Message__c), so "live" here
+ * means the same JWT-bearer Salesforce connection LiveSalesforce uses, just
+ * a different object. There is no separate bot token, no separate outage
+ * mode, and no separate credential to rotate.
+ *
+ * isExternal is a heuristic, not a real field: a message counts as external
+ * when it resolved to a Contact or Lead record (an outside party Salesforce
+ * already knows about) rather than an internal Slack user. A guest who
+ * hasn't been added as a Contact/Lead will read as internal -- there is no
+ * field on slackv2__Slack_Message__c that says so directly. Verify against
+ * real messages before relying on this distinction anywhere it matters.
  */
-interface LiveOptions {
-  botToken: string;
-}
-
-interface SlackApiMessage {
-  ts: string;
-  user?: string;
-  text?: string;
-  /** Present on Slack Connect messages; differs from our own team Id for a
-   * guest author. */
-  user_team?: string;
-  bot_id?: string;
-}
-
 export class LiveSlack implements SlackClient {
-  private ownTeamId: string | null = null;
+  constructor(private readonly rest: SalesforceRestClient) {}
 
-  constructor(private readonly opts: LiveOptions) {}
-
-  private async call<T>(method: string, params: URLSearchParams): Promise<T> {
-    const res = await fetch(`https://slack.com/api/${method}?${params.toString()}`, {
-      headers: { authorization: `Bearer ${this.opts.botToken}` },
-    });
-    if (!res.ok) {
-      throw new Error(`Slack ${method} failed: ${res.status}`);
-    }
-    const body = (await res.json()) as { ok: boolean; error?: string } & T;
-    if (!body.ok) {
-      throw new Error(`Slack ${method} failed: ${body.error ?? "unknown error"}`);
-    }
-    return body;
-  }
-
-  private async teamId(): Promise<string> {
-    if (this.ownTeamId) return this.ownTeamId;
-    const body = await this.call<{ team_id: string }>("auth.test", new URLSearchParams());
-    this.ownTeamId = body.team_id;
-    return body.team_id;
-  }
-
-  async getChannelHistory(channelId: string, limit: number): Promise<SlackMessage[]> {
-    const bounded = Math.min(Math.max(Math.trunc(limit), 1), 30);
-    const teamId = await this.teamId();
-    const body = await this.call<{ messages: SlackApiMessage[] }>(
-      "conversations.history",
-      new URLSearchParams({ channel: channelId, limit: String(bounded) }),
+  async getMessagesForOpportunity(
+    opportunityId: string,
+    limit: number,
+  ): Promise<SlackMessage[]> {
+    const records = await this.rest.query<SoqlRecord>(
+      opportunitySlackMessagesSoql(opportunityId, limit),
     );
-    return body.messages
-      .filter((m) => !m.bot_id)
-      .map((m) => ({
-        ts: m.ts,
-        userDisplay: m.user ?? null,
-        text: m.text ?? "",
-        isExternal: Boolean(m.user_team && m.user_team !== teamId),
-      }));
+    return records.map((r) => ({
+      ts: r.slackv2__Time_Stamp__c ?? "",
+      userDisplay: r.slackv2__User_Name__c,
+      text: r.slackv2__Content__c ?? "",
+      isExternal: Boolean(r.slackv2__Contact__c || r.slackv2__Lead__c),
+    }));
   }
 }
