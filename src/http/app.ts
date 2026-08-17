@@ -80,6 +80,7 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
       sf: deps.sf,
       slack: deps.slack,
       gong: deps.gong,
+      planhat: deps.planhat,
       audit: deps.audit,
     });
     const transport = new StreamableHTTPServerTransport({

@@ -19,6 +19,12 @@ export interface SalesforceClient {
   findOpportunities(query: string, limit: number): Promise<Opportunity[]>;
   /** Exact lookup by 15/18-char Salesforce Id. */
   getOpportunity(id: string): Promise<Opportunity | null>;
-  /** Unfiltered bulk read, most-recently-modified first, bounded. For scans (e.g. pipeline-pulse), not for MCP tools. */
+  /**
+   * Unfiltered bulk read, most-recently-modified first, bounded. Used both
+   * by scans (pipeline-pulse/pipeline_snapshot) and by the cross-deal MCP
+   * tools (recent_activity, coverage_check) -- callers are responsible for
+   * capping what they return to a caller, same discipline find_deal applies
+   * to a single query.
+   */
   listOpportunities(limit: number): Promise<Opportunity[]>;
 }

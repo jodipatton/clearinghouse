@@ -23,6 +23,18 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   search; Slack Connect guests are flagged `external`, not hidden.
 - **`call_details`** — recent Gong calls on a deal: when, how long, who was on
   them, and Gong's brief **only once Decision D is answered** (see below).
+- **`recent_activity`** — no deal Id required: the most recently modified
+  Salesforce opportunities in a window, each annotated with how many Slack
+  messages and Gong calls landed on it in the same window. For "what should I
+  catch up on."
+- **`coverage_check`** — bulk data-hygiene sweep across open deals: which ones
+  have no Slack channel mapped, no next step, or no Gong call on file.
+  `deal_status`'s own `coverage` field answers this one deal at a time; this
+  is the many-deals-at-once version.
+- **`pipeline_snapshot`** — the read-only, Claude-facing sibling of
+  `pipeline-pulse`: same fiction detection (`ghost_expansion`,
+  `renewal_blindspot`, `stale_momentum`), answered inline instead of on a
+  schedule, and it never proposes or writes anything to Planhat.
 - **Roster gate** — Git-backed `roster.json`, deny by default, denial audited.
 - **Audit** — every tool call logged as one JSON line (actor, tool, args,
   systems, bytes, latency) for the Cloud Logging → BigQuery sink.
@@ -38,9 +50,8 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   people who want the data directly instead of asking Claude: deal lookup,
   a pipeline-pulse review board, and roster/audit admin. See below.
 
-Not yet built (Week 5+): the Gong nightly index that replaces the window scan,
-`recent_activity`, `pipeline_snapshot` as an MCP tool, `coverage_check` as its
-own tool, per-person budgets, directory sync.
+Not yet built (Week 5+): the Gong nightly index that replaces the window
+scan, per-person budgets, directory sync.
 
 ## Run locally
 

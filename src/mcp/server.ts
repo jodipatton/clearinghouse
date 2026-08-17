@@ -3,6 +3,7 @@ import type { AuditSink } from "../audit.js";
 import type { SalesforceClient } from "../salesforce/types.js";
 import type { SlackClient } from "../slack/types.js";
 import type { GongClient } from "../gong/types.js";
+import type { PlanhatClient } from "../planhat/types.js";
 import { findDeal, findDealDescription, findDealInput } from "../tools/findDeal.js";
 import { dealStatus, dealStatusDescription, dealStatusInput } from "../tools/dealStatus.js";
 import {
@@ -15,12 +16,28 @@ import {
   callDetailsDescription,
   callDetailsInput,
 } from "../tools/callDetails.js";
+import {
+  recentActivity,
+  recentActivityDescription,
+  recentActivityInput,
+} from "../tools/recentActivity.js";
+import {
+  coverageCheck,
+  coverageCheckDescription,
+  coverageCheckInput,
+} from "../tools/coverageCheck.js";
+import {
+  pipelineSnapshot,
+  pipelineSnapshotDescription,
+  pipelineSnapshotInput,
+} from "../tools/pipelineSnapshot.js";
 
 export interface RequestContext {
   actor: string;
   sf: SalesforceClient;
   slack: SlackClient;
   gong: GongClient;
+  planhat: PlanhatClient;
   audit: AuditSink;
 }
 
@@ -115,6 +132,42 @@ export function buildServer(ctx: RequestContext): McpServer {
         ["salesforce", "gong"],
         { opportunityId: args.opportunityId },
         () => callDetails(ctx.sf, ctx.gong, args),
+      ),
+  );
+
+  server.registerTool(
+    "recent_activity",
+    { description: recentActivityDescription, inputSchema: recentActivityInput },
+    (args) =>
+      run(
+        "recent_activity",
+        ["salesforce", "slack", "gong"],
+        { ownerName: args.ownerName, days: args.days },
+        () => recentActivity(ctx.sf, ctx.slack, ctx.gong, args),
+      ),
+  );
+
+  server.registerTool(
+    "coverage_check",
+    { description: coverageCheckDescription, inputSchema: coverageCheckInput },
+    (args) =>
+      run(
+        "coverage_check",
+        ["salesforce", "gong"],
+        { ownerName: args.ownerName },
+        () => coverageCheck(ctx.sf, ctx.gong, args),
+      ),
+  );
+
+  server.registerTool(
+    "pipeline_snapshot",
+    { description: pipelineSnapshotDescription, inputSchema: pipelineSnapshotInput },
+    (args) =>
+      run(
+        "pipeline_snapshot",
+        ["salesforce", "planhat"],
+        { minSeverity: args.minSeverity },
+        () => pipelineSnapshot(ctx.sf, ctx.planhat, args),
       ),
   );
 

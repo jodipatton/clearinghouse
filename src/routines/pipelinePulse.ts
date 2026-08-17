@@ -1,9 +1,7 @@
 import type { SalesforceClient } from "../salesforce/types.js";
 import type { PlanhatClient, PlanhatProjectDraft } from "../planhat/types.js";
-import { detectFictions, DEFAULT_DETECTOR_CONFIG } from "../fictions/detect.js";
+import { scanPipeline } from "../fictions/scan.js";
 import type { DetectorConfig, Fiction } from "../fictions/types.js";
-
-const SCAN_LIMIT = 200;
 
 export interface PipelinePulseDeps {
   sf: SalesforceClient;
@@ -41,14 +39,10 @@ function toProjectDraft(fiction: Fiction): PlanhatProjectDraft {
 export async function runPipelinePulse(
   deps: PipelinePulseDeps,
 ): Promise<PipelinePulseResult> {
-  const [opportunities, companies] = await Promise.all([
-    deps.sf.listOpportunities(SCAN_LIMIT),
-    deps.planhat.listCompanies(SCAN_LIMIT),
-  ]);
-
-  const candidates = detectFictions(
-    { opportunities, companies },
-    deps.detectorConfig ?? DEFAULT_DETECTOR_CONFIG,
+  const { generatedAt, candidateCount, candidates } = await scanPipeline(
+    deps.sf,
+    deps.planhat,
+    deps.detectorConfig,
     deps.asOf,
   );
 
@@ -69,9 +63,9 @@ export async function runPipelinePulse(
   }
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     dryRun: deps.dryRun,
-    candidateCount: candidates.length,
+    candidateCount,
     candidates,
     proposedProjects,
     createdProjects,
