@@ -163,8 +163,16 @@ conversation. For anyone who wants to look something up directly, or for
 demoing/debugging without going through Claude at all. Vanilla JS, no build
 step, no separate deploy.
 
-Five tabs:
+Six tabs:
 
+- **Overview** — the default landing tab: a RevOps one-page rollup instead of
+  five separate places to look. Open pipeline value and deal count, open
+  pipeline by stage, fictions by severity (same detection as pipeline-pulse),
+  a "needs attention" list of the top fictions, coverage-check's gap count,
+  and upcoming Planhat renewals sorted soonest-first (overdue ones sort to
+  the top, not the bottom — a lapsed renewal date is still the most urgent
+  thing on the list). Pure rollup — `src/routines/overview.ts` — no new
+  system calls beyond what the other tabs already make, and no write path.
 - **Deal lookup** — search by name (`find_deal`), pick a result, see the same
   combined Salesforce + Gong + Slack picture `deal_status` /
   `deal_channel_activity` / `call_details` give Claude.

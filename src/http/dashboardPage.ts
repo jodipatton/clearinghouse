@@ -117,6 +117,53 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     letter-spacing: 0.05em; color: var(--ink-faint); margin: 0 0 8px;
   }
   code.mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-dim); }
+
+  /* ---------- overview ---------- */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  .kpi-tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .kpi-tile .value {
+    font-family: var(--font-mono); font-size: 24px; font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .kpi-tile .label { font-size: 12px; color: var(--ink-faint); }
+  .kpi-tile.tone-bad .value { color: var(--bad); }
+  .kpi-tile.tone-warn .value { color: var(--warn); }
+
+  .overview-grid {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start;
+  }
+  @media (max-width: 720px) { .overview-grid { grid-template-columns: 1fr; } }
+
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 90px; align-items: center; gap: 10px; padding: 5px 0; }
+  .bar-row .bar-label { font-size: 12.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row .bar-track { background: var(--surface-2); border-radius: 5px; height: 10px; overflow: hidden; }
+  .bar-row .bar-fill { background: var(--accent); height: 100%; border-radius: 5px 0 0 5px; }
+  .bar-row .bar-value { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
+
+  .severity-tiles { display: flex; gap: 10px; }
+  .severity-tile {
+    flex: 1; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+    border: 1px solid var(--border);
+  }
+  .severity-tile .count { font-family: var(--font-mono); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .severity-tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .severity-tile.high { background: var(--bad-soft); }
+  .severity-tile.high .count, .severity-tile.high .label { color: var(--bad); }
+  .severity-tile.medium { background: var(--warn-soft); }
+  .severity-tile.medium .count, .severity-tile.medium .label { color: var(--warn); }
+  .severity-tile.low { background: var(--surface-2); }
+  .severity-tile.low .count, .severity-tile.low .label { color: var(--ink-faint); }
+
+  .renewal-row.overdue td:nth-child(3) { color: var(--bad); font-weight: 600; }
+
+  .attention-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .attention-item:last-child { border-bottom: none; }
+  .attention-item .badge { flex: none; margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -124,18 +171,23 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
 
   <header class="masthead">
     <h1>Clearinghouse dashboard</h1>
-    <p>Deal lookup, pipeline-pulse review, and roster/audit — the same data as the Claude connector, browsed directly.</p>
+    <p>Pipeline overview, deal lookup, pipeline-pulse review, and roster/audit — the same data as the Claude connector, browsed directly.</p>
   </header>
 
   <nav class="tabs">
-    <button data-tab="lookup" class="active">Deal lookup</button>
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="lookup">Deal lookup</button>
     <button data-tab="activity">Recent activity</button>
     <button data-tab="coverage">Coverage check</button>
     <button data-tab="pulse">Pipeline-pulse</button>
     <button data-tab="admin">Admin &amp; audit</button>
   </nav>
 
-  <section class="panel active" id="panel-lookup">
+  <section class="panel active" id="panel-overview">
+    <div id="overviewRoot"></div>
+  </section>
+
+  <section class="panel" id="panel-lookup">
     <div class="card">
       <div class="row">
         <input type="text" id="dealQuery" placeholder="Search a deal or account, e.g. &quot;MMM&quot;" />
@@ -220,6 +272,115 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
   }
 
   function td(text) { return el("td", {}, [String(text === null || text === undefined || text === "" ? "—" : text)]); }
+
+  function money(n) {
+    if (n === null || n === undefined) return "—";
+    return "$" + Math.round(n).toLocaleString();
+  }
+
+  // ---------- overview ----------
+  function loadOverview() {
+    fetch("/dashboard/api/overview").then(function (r) { return r.json(); }).then(renderOverview);
+  }
+
+  function renderOverview(o) {
+    var root = document.getElementById("overviewRoot");
+    root.innerHTML = "";
+    root.style.display = "flex";
+    root.style.flexDirection = "column";
+    root.style.gap = "20px";
+
+    // KPI row
+    var kpis = el("div", { class: "kpi-row" }, [
+      el("div", { class: "kpi-tile" }, [
+        el("span", { class: "value" }, [money(o.pipeline.openPipelineAmount)]),
+        el("span", { class: "label" }, ["Open pipeline"]),
+      ]),
+      el("div", { class: "kpi-tile" }, [
+        el("span", { class: "value" }, [String(o.pipeline.openDealCount)]),
+        el("span", { class: "label" }, ["Open deals"]),
+      ]),
+      el("div", { class: "kpi-tile" + (o.fictions.totalCount > 0 ? " tone-warn" : "") }, [
+        el("span", { class: "value" }, [String(o.fictions.totalCount)]),
+        el("span", { class: "label" }, ["Fictions flagged"]),
+      ]),
+      el("div", { class: "kpi-tile" + (o.coverage.flaggedCount > 0 ? " tone-warn" : "") }, [
+        el("span", { class: "value" }, [String(o.coverage.flaggedCount) + " / " + String(o.coverage.scannedCount)]),
+        el("span", { class: "label" }, ["Coverage gaps"]),
+      ]),
+    ]);
+    root.appendChild(kpis);
+
+    var grid = el("div", { class: "overview-grid" }, []);
+
+    // left column: pipeline by stage + attention needed
+    var leftCol = el("div", { style: "display:flex; flex-direction:column; gap:16px" }, []);
+
+    var stageCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Open pipeline by stage"])]);
+    if (o.pipeline.byStage.length === 0) {
+      stageCard.appendChild(el("p", { class: "empty" }, ["No open deals."]));
+    } else {
+      var maxAmount = Math.max.apply(null, o.pipeline.byStage.map(function (s) { return s.amount; }));
+      o.pipeline.byStage.forEach(function (s) {
+        var pct = maxAmount > 0 ? Math.max(4, Math.round((s.amount / maxAmount) * 100)) : 0;
+        stageCard.appendChild(el("div", { class: "bar-row" }, [
+          el("span", { class: "bar-label" }, [s.stage + " (" + s.count + ")"]),
+          el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", style: "width:" + pct + "%" }, [])]),
+          el("span", { class: "bar-value" }, [money(s.amount)]),
+        ]));
+      });
+    }
+    leftCol.appendChild(stageCard);
+
+    var attentionCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Needs attention"])]);
+    if (o.fictions.top.length === 0) {
+      attentionCard.appendChild(el("p", { class: "empty" }, ["Nothing flagged in the last scan."]));
+    } else {
+      o.fictions.top.forEach(function (f) {
+        attentionCard.appendChild(el("div", { class: "attention-item" }, [
+          el("span", { class: "badge severity-" + f.severity }, [f.severity]),
+          el("span", {}, [f.summary]),
+        ]));
+      });
+    }
+    leftCol.appendChild(attentionCard);
+    grid.appendChild(leftCol);
+
+    // right column: fictions by severity + upcoming renewals
+    var rightCol = el("div", { style: "display:flex; flex-direction:column; gap:16px" }, []);
+
+    var sevCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Fictions by severity"])]);
+    var sevRow = el("div", { class: "severity-tiles" }, [
+      el("div", { class: "severity-tile high" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.high)]), el("span", { class: "label" }, ["High"])]),
+      el("div", { class: "severity-tile medium" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.medium)]), el("span", { class: "label" }, ["Medium"])]),
+      el("div", { class: "severity-tile low" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.low)]), el("span", { class: "label" }, ["Low"])]),
+    ]);
+    sevCard.appendChild(sevRow);
+    rightCol.appendChild(sevCard);
+
+    var renewalCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Upcoming renewals"])]);
+    if (o.upcomingRenewals.length === 0) {
+      renewalCard.appendChild(el("p", { class: "empty" }, ["No renewal dates on file."]));
+    } else {
+      var table = el("table", {}, [
+        el("thead", {}, [el("tr", {}, [el("th", {}, ["Company"]), el("th", {}, ["Renewal"]), el("th", {}, ["Days"]), el("th", {}, ["ARR"])])]),
+      ]);
+      var tbody = el("tbody", {}, []);
+      o.upcomingRenewals.forEach(function (r) {
+        var overdue = r.daysUntil < 0;
+        var daysLabel = overdue ? (Math.abs(r.daysUntil) + " overdue") : (r.daysUntil + " left");
+        tbody.appendChild(el("tr", { class: overdue ? "renewal-row overdue" : "renewal-row" }, [
+          td(r.name), td(r.renewalDate), td(daysLabel), td(money(r.arr)),
+        ]));
+      });
+      table.appendChild(tbody);
+      renewalCard.appendChild(table);
+    }
+    rightCol.appendChild(renewalCard);
+    grid.appendChild(rightCol);
+
+    root.appendChild(grid);
+  }
 
   // ---------- tabs ----------
   var tabButtons = document.querySelectorAll("nav.tabs button");
@@ -473,6 +634,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
 
   document.getElementById("auditRefreshBtn").addEventListener("click", loadAudit);
 
+  loadOverview();
   loadRoster();
   loadAudit();
 }());

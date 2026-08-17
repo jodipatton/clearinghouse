@@ -150,6 +150,20 @@ describe("GET /dashboard/api/coverage-check", () => {
   });
 });
 
+describe("GET /dashboard/api/overview", () => {
+  it("rolls up pipeline, fictions, coverage, and renewals in one response", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/overview`);
+    const body = await res.json();
+    server.close();
+    expect(res.status).toBe(200);
+    expect(body.pipeline.openDealCount).toBeGreaterThan(0);
+    expect(body.fictions.bySeverity).toHaveProperty("high");
+    expect(body.coverage).toHaveProperty("flaggedCount");
+    expect(Array.isArray(body.upcomingRenewals)).toBe(true);
+  });
+});
+
 describe("GET /dashboard/api/roster", () => {
   it("lists the roster's members", async () => {
     const { server, base } = startServer();

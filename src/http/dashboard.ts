@@ -7,6 +7,7 @@ import type { GongClient } from "../gong/types.js";
 import type { PlanhatClient } from "../planhat/types.js";
 import type { Roster } from "../roster.js";
 import { runPipelinePulse } from "../routines/pipelinePulse.js";
+import { buildOverview } from "../routines/overview.js";
 import { recentActivity, recentActivityInput } from "../tools/recentActivity.js";
 import { coverageCheck, coverageCheckInput } from "../tools/coverageCheck.js";
 import { DASHBOARD_HTML } from "./dashboardPage.js";
@@ -69,6 +70,17 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
   router.get("/", (_req, res) => {
     res.type("html").send(DASHBOARD_HTML);
   });
+
+  router.get(
+    "/api/overview",
+    withAudit(
+      "dashboard.overview",
+      ["salesforce", "slack", "gong", "planhat"],
+      async () => ({
+        ...(await buildOverview(deps.sf, deps.slack, deps.gong, deps.planhat)),
+      }),
+    ),
+  );
 
   router.get(
     "/api/deals",
