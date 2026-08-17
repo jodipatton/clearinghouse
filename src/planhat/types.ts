@@ -1,15 +1,31 @@
 export interface PlanhatCompany {
   id: string;
   name: string;
+  /**
+   * Real Planhat's `owner` is a User reference (objectId), not an email --
+   * resolving one requires a separate User lookup LivePlanhat doesn't do, so
+   * this is always null in live mode. Confirmed against real schema
+   * 2026-08; revisit only if something actually needs it.
+   */
   ownerEmail: string | null;
-  /** 0-100 in fixtures/mock. Exact field + scale unverified against a real tenant. */
+  /** 0-10 -- Planhat's own scale (raw field `h`). Confirmed against real schema 2026-08. */
   healthScore: number | null;
-  /** True when Planhat shows an active expansion/upsell/usage-growth signal. Field TBD. */
+  /**
+   * Derived, not a real field: true when Planhat's lifecycle `phase` is
+   * "Expansion" (Alignment → Onboarding → Adoption → Value Realization →
+   * Expansion). No literal expansion-signal-shaped field exists on the real
+   * Company model -- this is the closest proxy, not validated against real
+   * customer data.
+   */
   expansionSignal: boolean | null;
-  /** ISO date of next contract renewal/end. Field TBD. */
+  /** ISO date of next contract renewal/end. Matches real field name `renewalDate`. */
   renewalDate: string | null;
   arr: number | null;
-  /** ISO datetime of last logged engagement. Field TBD. */
+  /**
+   * Mapped from real Planhat's `lastTouch` (most recent interaction across
+   * all conversations) -- deliberately not `lastActive` (end-user product
+   * login, a different signal entirely).
+   */
   lastActivityDate: string | null;
 }
 

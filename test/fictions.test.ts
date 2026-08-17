@@ -41,7 +41,7 @@ describe("ghost_expansion", () => {
       id: "c1",
       name: "Acme Health Systems",
       ownerEmail: null,
-      healthScore: 91,
+      healthScore: 9.1,
       expansionSignal: true,
       renewalDate: null,
       arr: 90000,
@@ -50,7 +50,7 @@ describe("ghost_expansion", () => {
     const opportunity: Opportunity = {
       id: "006000000000001AA",
       name: "Acme Health Systems — Expansion",
-      stage: "Proposal",
+      stage: "Contracting",
       amount: 50000,
       closeDate: "2026-09-01",
       ownerName: null,
@@ -71,7 +71,7 @@ describe("ghost_expansion", () => {
       id: "c",
       name: "Threshold Co",
       ownerEmail: null,
-      healthScore: 80,
+      healthScore: 8.0,
       expansionSignal: true,
       renewalDate: null,
       arr: 0,
@@ -104,7 +104,7 @@ describe("renewal_blindspot", () => {
       id: "c1",
       name: "Covered Co",
       ownerEmail: null,
-      healthScore: 70,
+      healthScore: 7.0,
       expansionSignal: false,
       renewalDate: "2026-09-01",
       arr: 100000,
@@ -113,7 +113,7 @@ describe("renewal_blindspot", () => {
     const opportunity: Opportunity = {
       id: "006000000000002AA",
       name: "Covered Co — Renewal",
-      stage: "Negotiation",
+      stage: "Negotiating",
       amount: 100000,
       closeDate: "2026-09-05",
       ownerName: null,
@@ -134,7 +134,7 @@ describe("renewal_blindspot", () => {
       id: "c",
       name: "Urgency Co",
       ownerEmail: null,
-      healthScore: 70,
+      healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,
       arr: 50000,
@@ -154,7 +154,7 @@ describe("renewal_blindspot", () => {
 });
 
 describe("stale_momentum", () => {
-  it("fires for BigCo (Proposal stage, stale in both Salesforce and Planhat)", () => {
+  it("fires for BigCo (Contracting stage, stale in both Salesforce and Planhat)", () => {
     const fictions = fictionsOfType("stale_momentum");
     expect(fictions).toHaveLength(1);
     expect(fictions[0].accountName).toBe("BigCo Payer");
@@ -174,7 +174,7 @@ describe("stale_momentum", () => {
       id: "c1",
       name: "Recent Co",
       ownerEmail: null,
-      healthScore: 70,
+      healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,
       arr: 50000,
@@ -183,7 +183,7 @@ describe("stale_momentum", () => {
     const opportunity: Opportunity = {
       id: "006000000000003AA",
       name: "Recent Co — Deal",
-      stage: "Negotiation",
+      stage: "Negotiating",
       amount: 50000,
       closeDate: "2026-09-01",
       ownerName: null,
@@ -203,7 +203,7 @@ describe("stale_momentum", () => {
     const opportunity: Opportunity = {
       id: "006000000000004AA",
       name: "Orphan Co — Deal",
-      stage: "Negotiation",
+      stage: "Negotiating",
       amount: 50000,
       closeDate: "2026-09-01",
       ownerName: null,
@@ -224,14 +224,14 @@ describe("stale_momentum", () => {
       id: "c1",
       name: "Amount Co",
       ownerEmail: null,
-      healthScore: 70,
+      healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,
       arr: 50000,
       lastActivityDate: null,
     };
     const base = {
-      stage: "Negotiation" as const,
+      stage: "Negotiating" as const,
       closeDate: "2026-09-01",
       ownerName: null,
       accountName: "Amount Co",

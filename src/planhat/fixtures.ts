@@ -11,7 +11,7 @@ export const FIXTURES: PlanhatCompany[] = [
     id: "ph_mmm",
     name: "MMM Health",
     ownerEmail: "dana@1uphealth.com",
-    healthScore: 82,
+    healthScore: 8.2,
     expansionSignal: false,
     renewalDate: null,
     arr: 480000,
@@ -21,9 +21,9 @@ export const FIXTURES: PlanhatCompany[] = [
     id: "ph_bigco",
     name: "BigCo Payer",
     ownerEmail: "sam@1uphealth.com",
-    // Healthy-looking score but no recent activity in either system —
-    // exercises stale_momentum against the open Proposal-stage SF opportunity.
-    healthScore: 40,
+    // Middling score, but no recent activity in either system — exercises
+    // stale_momentum against the open Contracting-stage SF opportunity.
+    healthScore: 4.0,
     expansionSignal: false,
     renewalDate: null,
     arr: 250000,
@@ -33,7 +33,7 @@ export const FIXTURES: PlanhatCompany[] = [
     id: "ph_sunrise",
     name: "Sunrise Health Plan",
     ownerEmail: "dana@1uphealth.com",
-    healthScore: 68,
+    healthScore: 6.8,
     expansionSignal: false,
     // Renewal coming up; SF's only opportunity for this account is Closed Won
     // with a closeDate months earlier — exercises renewal_blindspot.
@@ -47,7 +47,7 @@ export const FIXTURES: PlanhatCompany[] = [
     ownerEmail: "sam@1uphealth.com",
     // Healthy, expanding, no matching SF opportunity at all —
     // exercises ghost_expansion.
-    healthScore: 91,
+    healthScore: 9.1,
     expansionSignal: true,
     renewalDate: null,
     arr: 90000,

@@ -10,9 +10,13 @@ import type {
  * OAuth dance — no token cache/refresh, and no retry-on-401 (a bad static
  * token won't fix itself on retry, unlike a rotating-token race).
  *
- * Every field name in RawCompany is a best-effort guess — a live schema
- * lookup against a real tenant was started but never completed. Do not point
- * PLANHAT_MODE=live at production until this mapping is verified.
+ * RawCompany's field names are confirmed against the real Company schema
+ * (2026-08): `h` (0-10 health), `phase` (lifecycle enum), `renewalDate`,
+ * `arr`, `lastTouch` all exist as named. `owner` is a User reference, not an
+ * email, and there is no literal expansion-signal-shaped field at all --
+ * both are handled as documented limitations in toCompany() below, not
+ * guesses. The write path (createProject) is still unverified against a
+ * real tenant; don't flip ROUTINES_DRY_RUN=false until that's checked too.
  */
 interface LivePlanhatOptions {
   apiUrl: string;
@@ -22,12 +26,11 @@ interface LivePlanhatOptions {
 interface RawCompany {
   _id: string;
   name: string;
-  ownerEmail?: string | null;
-  healthScore?: number | null;
-  expansionSignal?: boolean | null;
+  h?: number | null;
+  phase?: string | null;
   renewalDate?: string | null;
   arr?: number | null;
-  lastActivityDate?: string | null;
+  lastTouch?: string | null;
 }
 
 interface RawProject {
@@ -58,12 +61,14 @@ export class LivePlanhat implements PlanhatClient {
     return {
       id: r._id,
       name: r.name,
-      ownerEmail: r.ownerEmail ?? null,
-      healthScore: r.healthScore ?? null,
-      expansionSignal: r.expansionSignal ?? null,
+      // owner is a User reference on the real record, not an email; not
+      // resolved here (see PlanhatCompany's doc comment).
+      ownerEmail: null,
+      healthScore: r.h ?? null,
+      expansionSignal: r.phase === "Expansion",
       renewalDate: r.renewalDate ?? null,
       arr: r.arr ?? null,
-      lastActivityDate: r.lastActivityDate ?? null,
+      lastActivityDate: r.lastTouch ?? null,
     };
   }
 

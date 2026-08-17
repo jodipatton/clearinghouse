@@ -5,7 +5,7 @@ export const FIXTURES: Opportunity[] = [
   {
     id: "006Ru00000AbCdEfGh",
     name: "MMM Health — Platform Expansion",
-    stage: "Negotiation",
+    stage: "Negotiating",
     amount: 480000,
     closeDate: "2026-09-30",
     ownerName: "Dana Reyes",
@@ -18,7 +18,7 @@ export const FIXTURES: Opportunity[] = [
   {
     id: "006Ru00000JkLmNoPq",
     name: "BigCo Payer — FHIR Gateway",
-    stage: "Proposal",
+    stage: "Contracting",
     amount: 250000,
     closeDate: "2026-10-15",
     ownerName: "Sam Okafor",

@@ -27,7 +27,7 @@ describe("deal_status", () => {
       opportunityId: "006Ru00000AbCdEfGh",
     });
     const deal = result.deal as Record<string, unknown>;
-    expect(deal.stage).toBe("Negotiation");
+    expect(deal.stage).toBe("Negotiating");
     expect(deal.owner).toBe("Dana Reyes");
     const coverage = result.coverage as Record<string, string>;
     expect(coverage.salesforce).toBe("answered");

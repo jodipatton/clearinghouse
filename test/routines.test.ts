@@ -16,7 +16,7 @@ const PROJECT_TIER_COMPANY: PlanhatCompany = {
   id: "c1",
   name: "Test Co",
   ownerEmail: null,
-  healthScore: 90,
+  healthScore: 9.0,
   expansionSignal: true,
   renewalDate: null,
   arr: 300_000, // >= highArrThreshold -> severity "high" -> suggestedAction "planhat_project"
