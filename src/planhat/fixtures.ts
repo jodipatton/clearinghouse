@@ -1,4 +1,11 @@
-import type { PlanhatCompany } from "./types.js";
+import type { PlanhatCompany, PlanhatUser } from "./types.js";
+
+/** Keyed to line up with the CSM names on the Salesforce fixtures' Owner field, for realism. */
+export const USER_FIXTURES: PlanhatUser[] = [
+  { id: "u_dana", name: "Dana Reyes", email: "dana@1uphealth.com" },
+  { id: "u_sam", name: "Sam Okafor", email: "sam@1uphealth.com" },
+  { id: "u_priya", name: "Priya Shah", email: "priya@1uphealth.com" },
+];
 
 /**
  * Keyed to line up with salesforce/fixtures.ts's three accounts (MMM Health,
@@ -10,7 +17,11 @@ export const FIXTURES: PlanhatCompany[] = [
   {
     id: "ph_mmm",
     name: "MMM Health",
-    ownerEmail: "dana@1uphealth.com",
+    csmOwnerId: "u_dana",
+    implementationManagerUserId: "u_priya",
+    // Existing customer -- its open opportunity ("Platform Expansion") is
+    // exactly the upsell case, not new sales.
+    status: "customer",
     healthScore: 8.2,
     expansionSignal: false,
     renewalDate: null,
@@ -20,7 +31,10 @@ export const FIXTURES: PlanhatCompany[] = [
   {
     id: "ph_bigco",
     name: "BigCo Payer",
-    ownerEmail: "sam@1uphealth.com",
+    csmOwnerId: "u_sam",
+    implementationManagerUserId: null,
+    // Still a prospect -- its open opportunity is the new-sales case.
+    status: "prospect",
     // Middling score, but no recent activity in either system — exercises
     // stale_momentum against the open Contracting-stage SF opportunity.
     healthScore: 4.0,
@@ -32,7 +46,9 @@ export const FIXTURES: PlanhatCompany[] = [
   {
     id: "ph_sunrise",
     name: "Sunrise Health Plan",
-    ownerEmail: "dana@1uphealth.com",
+    csmOwnerId: "u_dana",
+    implementationManagerUserId: null,
+    status: "customer",
     healthScore: 6.8,
     expansionSignal: false,
     // Renewal coming up; SF's only opportunity for this account is Closed Won
@@ -44,7 +60,9 @@ export const FIXTURES: PlanhatCompany[] = [
   {
     id: "ph_acme",
     name: "Acme Health Systems",
-    ownerEmail: "sam@1uphealth.com",
+    csmOwnerId: "u_sam",
+    implementationManagerUserId: null,
+    status: "customer",
     // Healthy, expanding, no matching SF opportunity at all —
     // exercises ghost_expansion.
     healthScore: 9.1,

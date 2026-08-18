@@ -40,7 +40,9 @@ describe("ghost_expansion", () => {
     const company: PlanhatCompany = {
       id: "c1",
       name: "Acme Health Systems",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 9.1,
       expansionSignal: true,
       renewalDate: null,
@@ -70,7 +72,9 @@ describe("ghost_expansion", () => {
     const base: PlanhatCompany = {
       id: "c",
       name: "Threshold Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 8.0,
       expansionSignal: true,
       renewalDate: null,
@@ -104,7 +108,9 @@ describe("renewal_blindspot", () => {
     const company: PlanhatCompany = {
       id: "c1",
       name: "Lapsed Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 5,
       expansionSignal: false,
       renewalDate: "2024-01-01", // long past ASOF (2026-08-15)
@@ -122,11 +128,33 @@ describe("renewal_blindspot", () => {
     expect(fictions[0].summary).not.toContain("renews in -");
   });
 
+  it("does not fire for a churned account, even with a lapsed renewal date -- confirmed real case (Highmark Health, status 'lost')", () => {
+    const company: PlanhatCompany = {
+      id: "c1",
+      name: "Churned Co",
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: "lost",
+      healthScore: 0,
+      expansionSignal: false,
+      renewalDate: "2024-01-01",
+      arr: 0,
+      lastActivityDate: null,
+    };
+    const fictions = fictionsOfType("renewal_blindspot", {
+      opportunities: [],
+      companies: [company],
+    });
+    expect(fictions).toHaveLength(0);
+  });
+
   it("does not fire when an open opportunity closes near the renewal date", () => {
     const company: PlanhatCompany = {
       id: "c1",
       name: "Covered Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 7.0,
       expansionSignal: false,
       renewalDate: "2026-09-01",
@@ -156,7 +184,9 @@ describe("renewal_blindspot", () => {
     const base: PlanhatCompany = {
       id: "c",
       name: "Urgency Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,
@@ -196,7 +226,9 @@ describe("stale_momentum", () => {
     const company: PlanhatCompany = {
       id: "c1",
       name: "Recent Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,
@@ -246,7 +278,9 @@ describe("stale_momentum", () => {
     const company: PlanhatCompany = {
       id: "c1",
       name: "Amount Co",
-      ownerEmail: null,
+      csmOwnerId: null,
+      implementationManagerUserId: null,
+      status: null,
       healthScore: 7.0,
       expansionSignal: false,
       renewalDate: null,

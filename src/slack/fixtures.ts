@@ -2,11 +2,12 @@ import type { SlackMessage } from "./types.js";
 
 /**
  * Demo data mirroring the PRD walkthrough — used by SLACK_MODE=mock and
- * tests. Keyed by Salesforce opportunity Id (slackv2__Opportunity__c's join
- * key), matching src/salesforce/fixtures.ts's MMM Health opportunity.
+ * tests. Keyed by account name (the real "#account-<name>" join key is a
+ * channel-name match, not a stored field -- see LiveSlack), matching
+ * src/salesforce/fixtures.ts's MMM Health account.
  */
 export const FIXTURES: Record<string, SlackMessage[]> = {
-  "006Ru00000AbCdEfGh": [
+  "MMM Health": [
     {
       ts: "1785700000.000100",
       userDisplay: "Dana Reyes",

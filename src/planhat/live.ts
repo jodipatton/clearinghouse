@@ -1,9 +1,19 @@
 import type {
   PlanhatClient,
   PlanhatCompany,
+  PlanhatCompanyStatus,
   PlanhatProject,
   PlanhatProjectDraft,
+  PlanhatUser,
 } from "./types.js";
+
+const VALID_STATUSES: readonly PlanhatCompanyStatus[] = [
+  "prospect",
+  "coming",
+  "customer",
+  "canceled",
+  "lost",
+];
 
 /**
  * Planhat uses a static per-tenant bearer token, not Salesforce's JWT-bearer
@@ -11,12 +21,15 @@ import type {
  * token won't fix itself on retry, unlike a rotating-token race).
  *
  * RawCompany's field names are confirmed against the real Company schema
- * (2026-08): `h` (0-10 health), `phase` (lifecycle enum), `renewalDate`,
- * `arr`, `lastTouch` all exist as named. `owner` is a User reference, not an
- * email, and there is no literal expansion-signal-shaped field at all --
- * both are handled as documented limitations in toCompany() below, not
- * guesses. The write path (createProject) is still unverified against a
- * real tenant; don't flip ROUTINES_DRY_RUN=false until that's checked too.
+ * (2026-08): `h` (0-10 health), `phase` (lifecycle enum), `status`
+ * (prospect/coming/customer/canceled/lost lifecycle status), `renewalDate`,
+ * `arr`, `lastTouch`, `owner`, and `custom["Implementation Manager"]` all
+ * exist as named -- and `owner`/the custom "team member" field are plain
+ * User _ids confirmed to resolve via listUsers(), not guesses. There is no
+ * literal expansion-signal-shaped field at all; handled as a documented
+ * proxy in toCompany() below. The write path (createProject) is still
+ * unverified against a real tenant; don't flip ROUTINES_DRY_RUN=false until
+ * that's checked too.
  */
 interface LivePlanhatOptions {
   apiUrl: string;
@@ -26,11 +39,22 @@ interface LivePlanhatOptions {
 interface RawCompany {
   _id: string;
   name: string;
+  owner?: string | null;
+  custom?: Record<string, unknown>;
+  status?: string | null;
   h?: number | null;
   phase?: string | null;
   renewalDate?: string | null;
   arr?: number | null;
   lastTouch?: string | null;
+}
+
+interface RawUser {
+  _id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  nickName?: string | null;
+  email: string;
 }
 
 interface RawProject {
@@ -61,15 +85,26 @@ export class LivePlanhat implements PlanhatClient {
     return {
       id: r._id,
       name: r.name,
-      // owner is a User reference on the real record, not an email; not
-      // resolved here (see PlanhatCompany's doc comment).
-      ownerEmail: null,
+      csmOwnerId: r.owner ?? null,
+      implementationManagerUserId:
+        (r.custom?.["Implementation Manager"] as string | undefined) ?? null,
+      status: VALID_STATUSES.includes(r.status as PlanhatCompanyStatus)
+        ? (r.status as PlanhatCompanyStatus)
+        : null,
       healthScore: r.h ?? null,
       expansionSignal: r.phase === "Expansion",
       renewalDate: r.renewalDate ?? null,
       arr: r.arr ?? null,
       lastActivityDate: r.lastTouch ?? null,
     };
+  }
+
+  private static toUser(r: RawUser): PlanhatUser {
+    const name =
+      [r.firstName, r.lastName].filter(Boolean).join(" ").trim() ||
+      r.nickName ||
+      r.email;
+    return { id: r._id, name, email: r.email };
   }
 
   async listCompanies(limit: number): Promise<PlanhatCompany[]> {
@@ -87,6 +122,12 @@ export class LivePlanhat implements PlanhatClient {
     } catch {
       return null;
     }
+  }
+
+  async listUsers(limit: number): Promise<PlanhatUser[]> {
+    const bounded = Math.min(Math.max(Math.trunc(limit), 1), 500);
+    const records = await this.request<RawUser[]>(`/users?limit=${bounded}`);
+    return records.map(LivePlanhat.toUser);
   }
 
   async createProject(draft: PlanhatProjectDraft): Promise<PlanhatProject> {

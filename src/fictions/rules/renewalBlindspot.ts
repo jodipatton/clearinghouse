@@ -15,6 +15,12 @@ export function detectRenewalBlindspot(
   const fictions: Fiction[] = [];
 
   for (const company of input.companies) {
+    // A churned account's stale renewal date isn't a gap to fill -- it's
+    // just stale data. Surfaced by real Planhat data: a "lost" customer
+    // with a renewal date years in the past was otherwise flagged "high
+    // severity, needs a Planhat project," which is nonsense.
+    if (company.status === "canceled" || company.status === "lost") continue;
+
     const renewalDate = company.renewalDate;
     if (!renewalDate) continue;
 

@@ -2,16 +2,24 @@ export interface SlackMessage {
   ts: string;
   userDisplay: string | null;
   text: string;
-  /** True when the message resolved to an external Contact/Lead rather than an internal Slack user -- see LiveSlack's doc comment for the limits of this heuristic. */
+  /** True for a Slack Connect guest from outside 1upHealth's workspace. */
   isExternal: boolean;
 }
 
 export interface SlackClient {
   /**
-   * A deal's Slack messages, newest first, bounded. No channel-Id concept:
-   * Slack activity is synced into Salesforce as slackv2__Slack_Message__c
-   * rows joined directly to the Opportunity, so the opportunity Id alone is
-   * the query key.
+   * A resolved account's most recent messages, newest first, bounded. The
+   * channel isn't looked up by any stored Id on the deal -- it's resolved
+   * from the account name against the real "#account-<name>" naming
+   * convention (see LiveSlack's doc comment). Returns [] when no matching
+   * channel is found, same as "no messages," never an error.
    */
-  getMessagesForOpportunity(opportunityId: string, limit: number): Promise<SlackMessage[]>;
+  getMessagesForAccount(accountName: string, limit: number): Promise<SlackMessage[]>;
+  /**
+   * Message count on a resolved account's channel within the last `days` --
+   * powers the 60-day activity overview. Bounded, not exhaustive: stops
+   * paging after a fixed cap rather than counting forever on a very busy
+   * channel.
+   */
+  countRecentMessages(accountName: string, days: number): Promise<number>;
 }

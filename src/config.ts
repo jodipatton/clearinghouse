@@ -32,11 +32,12 @@ const schema = z
     SF_PRIVATE_KEY: z.string().optional(),
 
     // "mock" = fixture-backed Slack for local dev and tests.
-    // "live" = queried from Salesforce (slackv2__Slack_Message__c) over the
-    // same JWT-bearer connection as SF_MODE=live -- Slack activity is synced
-    // in by a Slack managed package, not read from a separate bot API, so
-    // there is no separate credential here at all.
+    // "live" = bot token installed once to the workspace, invited only into
+    // the "#account-<name>" channels it needs. Confirmed 2026-08: that's
+    // 1upHealth's real customer-channel convention, and the deal<->channel
+    // mapping lives in the channel name, not any Salesforce/Planhat field.
     SLACK_MODE: z.enum(["mock", "live"]).default("mock"),
+    SLACK_BOT_TOKEN: z.string().optional(),
 
     // "mock" = fixture-backed Gong for local dev and tests.
     // "live" = read-only API key (access key + secret) issued to this service.
@@ -104,12 +105,10 @@ const schema = z
         message: "SF_MODE=live requires SF_CLIENT_ID, SF_USERNAME, SF_PRIVATE_KEY",
       });
     }
-    if (cfg.SLACK_MODE === "live" && cfg.SF_MODE !== "live") {
+    if (cfg.SLACK_MODE === "live" && !cfg.SLACK_BOT_TOKEN) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message:
-          "SLACK_MODE=live requires SF_MODE=live -- Slack activity is read " +
-          "over the same Salesforce connection, not a separate credential",
+        message: "SLACK_MODE=live requires SLACK_BOT_TOKEN",
       });
     }
     if (

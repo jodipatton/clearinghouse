@@ -31,7 +31,7 @@ describe("deal_channel_activity", () => {
       opportunityId: "006Ru00000JkLmNoPq", // BigCo, no fixture entry
     });
     expect(result.messages).toEqual([]);
-    expect(result.coverage).toContain("no Slack activity synced");
+    expect(result.coverage).toContain("no Slack activity found");
   });
 
   it("reports an unknown id without erroring", async () => {

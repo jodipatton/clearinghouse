@@ -13,22 +13,22 @@ import { createApp } from "./http/app.js";
 
 const cfg = loadConfig();
 
-// One connection, shared by LiveSalesforce and LiveSlack -- Slack activity
-// turns out to be a Salesforce query too (see src/slack/live.ts), not a
-// separate credential.
-const sfRest =
-  cfg.SF_MODE === "live" || cfg.SLACK_MODE === "live"
-    ? new SalesforceRestClient({
-        loginUrl: cfg.SF_LOGIN_URL,
-        clientId: cfg.SF_CLIENT_ID!,
-        username: cfg.SF_USERNAME!,
-        privateKeyPem: cfg.SF_PRIVATE_KEY!,
-      })
-    : null;
+const sf =
+  cfg.SF_MODE === "live"
+    ? new LiveSalesforce(
+        new SalesforceRestClient({
+          loginUrl: cfg.SF_LOGIN_URL,
+          clientId: cfg.SF_CLIENT_ID!,
+          username: cfg.SF_USERNAME!,
+          privateKeyPem: cfg.SF_PRIVATE_KEY!,
+        }),
+      )
+    : new MockSalesforce();
 
-const sf = cfg.SF_MODE === "live" ? new LiveSalesforce(sfRest!) : new MockSalesforce();
-
-const slack = cfg.SLACK_MODE === "live" ? new LiveSlack(sfRest!) : new MockSlack();
+const slack =
+  cfg.SLACK_MODE === "live"
+    ? new LiveSlack({ botToken: cfg.SLACK_BOT_TOKEN! })
+    : new MockSlack();
 
 const gong =
   cfg.GONG_MODE === "live"

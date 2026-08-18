@@ -15,7 +15,9 @@ const SECRET = "test-shared-secret-1234567890";
 const PROJECT_TIER_COMPANY: PlanhatCompany = {
   id: "c1",
   name: "Test Co",
-  ownerEmail: null,
+  csmOwnerId: null,
+  implementationManagerUserId: null,
+  status: null,
   healthScore: 9.0,
   expansionSignal: true,
   renewalDate: null,
