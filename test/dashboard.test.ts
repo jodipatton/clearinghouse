@@ -161,6 +161,21 @@ describe("GET /dashboard/api/overview", () => {
     expect(body.fictions.bySeverity).toHaveProperty("high");
     expect(body.coverage).toHaveProperty("flaggedCount");
     expect(Array.isArray(body.upcomingRenewals)).toBe(true);
+    expect(body.filterOptions.salesReps).toContain("Dana Reyes");
+    expect(body.customerHealth).toHaveProperty("averageHealth");
+    expect(body.activity.windowDays).toBe(60);
+    expect(body.pipeline.newSales).toHaveProperty("amount");
+    expect(body.pipeline.upsell).toHaveProperty("amount");
+    expect(body.pipeline.renewal).toHaveProperty("amount");
+  });
+
+  it("narrows the response by salesRep query param", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/api/overview?salesRep=${encodeURIComponent("Dana Reyes")}`);
+    const body = await res.json();
+    server.close();
+    expect(body.filters.salesRep).toBe("Dana Reyes");
+    expect(body.pipeline.openDealCount).toBe(1);
   });
 });
 

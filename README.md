@@ -18,11 +18,12 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
 - **`find_deal`** — fuzzy deal name → real Salesforce opportunities.
 - **`deal_status`** — the Salesforce picture of one deal. Its `coverage` field
   points at the two tools below rather than returning a silently thin answer.
-- **`deal_channel_activity`** — a deal's synced Slack activity. Not a
-  separate Slack API: messages arrive in Salesforce as
-  `slackv2__Slack_Message__c` records joined to the Opportunity, so there's
-  no channel-Id concept and no separate credential. External senders are
-  flagged, not hidden — see the live-setup note below on how that's inferred.
+- **`deal_channel_activity`** — a deal's Slack activity, resolved by account
+  name against 1upHealth's real `#account-<name>` channel-naming convention
+  (confirmed 2026-08 — no Salesforce or Planhat field stores this mapping,
+  the channel name IS the mapping). Not a workspace-wide search: a bot token
+  invited only into the account channels it needs. External senders are
+  flagged, not hidden.
 - **`call_details`** — recent Gong calls on a deal: when, how long, who was on
   them, and Gong's brief **only once Decision D is answered** (see below).
 - **`recent_activity`** — no deal Id required: the most recently modified
@@ -77,18 +78,13 @@ start when `NODE_ENV=production`.
 | 02 Lookalike connector URL | Host on `1uphealth.com` itself; connector-adding restricted to Claude org admins | Decision A + Claude admin console |
 | 03 Gong tenant walk | `call_details` reaches calls only through a resolved Salesforce opportunity; `GongClient` exposes no list-all and no by-call-Id path, and the live window scan is page-capped | `src/gong/types.ts`, `src/gong/live.ts` |
 | 04 PHI on sales calls | `GONG_CONTENT=metadata` means the call brief is never *requested* — no redaction pass is load-bearing. Turning it on needs `GONG_PHI_REVIEW_SIGNED_OFF=true` or the server refuses to start | Decision D — `src/config.ts`, still unanswered |
-| 05 Salesforce signing key | JWT bearer as one pre-authorized integration user (`src/salesforce/client.ts`, shared by `LiveSalesforce` and `LiveSlack`); key generated in Cloud Shell, never a laptop; connected app locked to that user + static egress IP | Code + Salesforce setup runbook below |
+| 05 Salesforce signing key | JWT bearer as one pre-authorized integration user (`src/salesforce/client.ts`); key generated in Cloud Shell, never a laptop; connected app locked to that user + static egress IP | Code + Salesforce setup runbook below |
 | 06 Roster misconfiguration | Git-backed `roster.json`, service reads only, deny by default, denials audited | `src/roster.ts`, `src/http/auth.ts` |
 
 ## Salesforce live setup (Gate 05 runbook)
 
 1. Create integration user `clearinghouse@1uphealth.com` with a read-only
-   profile scoped to Opportunity + Account, plus **read on
-   `slackv2__Slack_Message__c`** if `SLACK_MODE=live` — Slack activity is
-   synced in by a Slack managed package, not a separate bot API, so this one
-   connection covers both. (`isExternal` on a message is a heuristic —
-   whether it resolved to a Contact/Lead, not a real field. Verify against
-   real messages before relying on it.)
+   profile scoped to Opportunity + Account.
 2. In **Cloud Shell** (so the key never touches a laptop):
    `openssl req -x509 -newkey rsa:2048 -nodes -keyout sf.key -out sf.crt -days 730`
 3. Connected app: upload `sf.crt`, enable OAuth, scopes `api`; **Admin
@@ -97,6 +93,33 @@ start when `NODE_ENV=production`.
    static egress IP (via Serverless VPC connector + Cloud NAT).
 4. Put `sf.key` in Secret Manager as `SF_PRIVATE_KEY`; delete the local copy.
 5. Set `SF_MODE=live`, `SF_CLIENT_ID` (consumer key), `SF_USERNAME`.
+
+## Slack live setup
+
+1. Install a bot (`chat:read`/`channels:read`/`groups:read` scopes) to the
+   workspace; invite it into every `#account-<name>` channel it needs — it
+   can only ever read channels it's actually in, so this is the real access
+   boundary, not a config flag.
+2. Confirmed 2026-08 against the real workspace: customer channels follow
+   `#account-<name>` (e.g. `#account-oscar`, `#account-empower-health`) —
+   this **is** the deal↔channel mapping; no Salesforce or Planhat field
+   stores it. `LiveSlack` resolves an account name to a channel by matching
+   against this prefix, not a workspace-wide search.
+   Two things to know before relying on it in production:
+   - **Ambiguous/short account names can mismatch.** Same known-limitation
+     shape as the account-name join in `fictions/match.ts` — verify against
+     a sample of real accounts before trusting it broadly.
+   - **Many accounts have no channel, or an empty one.** Newer
+     `-implementation-` channels frequently have no topic/purpose at all,
+     and not every account has a channel yet. `getMessagesForAccount` and
+     `countRecentMessages` both return empty/zero in that case, same as "no
+     activity" — never an error.
+3. Put the bot token in Secret Manager as `SLACK_BOT_TOKEN`; set
+   `SLACK_MODE=live`.
+
+(Channel *topic/purpose* text was investigated as a source for CSM/Sales/
+Implementation-Manager role assignment and rejected — see "CSM and
+Implementation Manager" below for why Planhat is used instead.)
 
 ## Gong live setup (Gates 03 + 04 runbook)
 
@@ -166,13 +189,17 @@ step, no separate deploy.
 Six tabs:
 
 - **Overview** — the default landing tab: a RevOps one-page rollup instead of
-  five separate places to look. Open pipeline value and deal count, open
-  pipeline by stage, fictions by severity (same detection as pipeline-pulse),
-  a "needs attention" list of the top fictions, coverage-check's gap count,
-  and upcoming Planhat renewals sorted soonest-first (overdue ones sort to
-  the top, not the bottom — a lapsed renewal date is still the most urgent
-  thing on the list). Pure rollup — `src/routines/overview.ts` — no new
-  system calls beyond what the other tabs already make, and no write path.
+  five separate places to look. Open pipeline split into new sales / upsell /
+  renewal (see "Segmentation" below for where that split actually comes
+  from), fictions by severity, a "needs attention" list, coverage-check's
+  gap count, customer health (average + an at-risk list), 60-day Slack
+  activity per account, and upcoming Planhat renewals sorted soonest-first
+  (overdue sorts to the top, and churned accounts are excluded entirely —
+  see "Segmentation"). Filterable by **sales rep**, **CSM**, and **implementation
+  manager** — picking one narrows every section consistently (a rep filter
+  also narrows which accounts show up; a CSM filter also narrows which
+  opportunities show up). Pure rollup — `src/routines/overview.ts` — no
+  write path.
 - **Deal lookup** — search by name (`find_deal`), pick a result, see the same
   combined Salesforce + Gong + Slack picture `deal_status` /
   `deal_channel_activity` / `call_details` give Claude.
@@ -199,6 +226,40 @@ Free text from external systems (deal descriptions, Slack messages, Gong call
 titles) is written into the page with `textContent`, never `innerHTML` — same
 untrusted-data handling as everywhere else in this codebase, just for a human
 reader instead of an LLM.
+
+## Segmentation: sales rep, CSM, implementation manager, new sales / upsell / renewal
+
+Fields the Overview tab filters/splits by, and where each one actually comes
+from (checked against real data 2026-08, not assumed):
+
+- **Sales rep** — Salesforce `Opportunity.Owner`. Already a real, reliable
+  field; no change needed.
+- **New sales vs. upsell vs. renewal** — not `Opportunity.Type`, which is
+  72% null on real open opportunities and partly corrupted (a RecordTypeId
+  string was found written into the Type field itself on closed-won renewal
+  records). Renewal is `StageName` starting with "Renewal " (Anticipated /
+  Not Anticipated / Contract Issued) — `isRenewalStage`. Splitting what's
+  left into new sales vs. upsell needed a second real field, since Type
+  can't do that either: Planhat's `status` (prospect/coming/**customer**/
+  canceled/lost) on the account. A non-renewal-stage opportunity on an
+  already-`"customer"` account is expansion revenue, not a new logo; on a
+  `"prospect"` (or an account with no Planhat record at all) it's real new
+  sales. `classifyPipelineCategory` in `src/fictions/match.ts` is the split.
+  Same `status` field caught a real bug during testing: `renewal_blindspot`
+  and the upcoming-renewals list were flagging a churned (`status: "lost"`)
+  account's years-stale renewal date as an urgent gap — both now exclude
+  `canceled`/`lost` accounts.
+- **CSM and Implementation Manager** — Planhat's `owner` and
+  `custom["Implementation Manager"]` fields, resolved against
+  `PlanhatClient.listUsers()`. Two alternatives were investigated and
+  rejected: Salesforce `UserRole` distinguishes AE-type roles from
+  leadership but has no CSM label at all; Slack channel topic/purpose text
+  (see "Slack live setup" above) often *does* document these roles in
+  plain language, but real examples turned up six different separator
+  conventions, Topic and Purpose disagreeing about who the CSM is on the
+  same channel, and most newer channels with no metadata at all — too
+  inconsistent to parse reliably. Planhat's fields are plain User Ids that
+  resolve cleanly with no dead ends; that's the reliable source.
 
 ## Auth vendor setup (Decision C — vendor-agnostic checklist)
 

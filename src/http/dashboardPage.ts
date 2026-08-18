@@ -76,7 +76,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     padding: 18px 20px;
   }
   .row { display: flex; gap: 10px; align-items: center; }
-  input[type="text"] {
+  input[type="text"], select {
     flex: 1; font-family: var(--font-body); font-size: 14px; padding: 9px 12px;
     border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
     color: var(--ink);
@@ -120,7 +120,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
 
   /* ---------- overview ---------- */
   .kpi-row {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;
   }
   .kpi-tile {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -184,6 +184,14 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
   </nav>
 
   <section class="panel active" id="panel-overview">
+    <div class="card">
+      <div class="row">
+        <select id="filterSalesRep"><option value="">All sales reps</option></select>
+        <select id="filterCsm"><option value="">All CSMs</option></select>
+        <select id="filterImplementationManager"><option value="">All implementation managers</option></select>
+        <button class="action" id="filterClearBtn">Clear</button>
+      </div>
+    </div>
     <div id="overviewRoot"></div>
   </section>
 
@@ -279,9 +287,54 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
   }
 
   // ---------- overview ----------
-  function loadOverview() {
-    fetch("/dashboard/api/overview").then(function (r) { return r.json(); }).then(renderOverview);
+  function currentFilters() {
+    return {
+      salesRep: document.getElementById("filterSalesRep").value,
+      csm: document.getElementById("filterCsm").value,
+      implementationManager: document.getElementById("filterImplementationManager").value,
+    };
   }
+
+  function loadOverview() {
+    var f = currentFilters();
+    var params = [];
+    if (f.salesRep) params.push("salesRep=" + encodeURIComponent(f.salesRep));
+    if (f.csm) params.push("csm=" + encodeURIComponent(f.csm));
+    if (f.implementationManager) params.push("implementationManager=" + encodeURIComponent(f.implementationManager));
+    var url = "/dashboard/api/overview" + (params.length ? "?" + params.join("&") : "");
+    fetch(url).then(function (r) { return r.json(); }).then(function (o) {
+      populateFilterOptions(o.filterOptions);
+      renderOverview(o);
+    });
+  }
+
+  function populateFilterOptions(opts) {
+    [
+      ["filterSalesRep", opts.salesReps],
+      ["filterCsm", opts.csms],
+      ["filterImplementationManager", opts.implementationManagers],
+    ].forEach(function (pair) {
+      var select = document.getElementById(pair[0]);
+      var current = select.value;
+      var placeholder = select.options[0];
+      select.innerHTML = "";
+      select.appendChild(placeholder);
+      pair[1].forEach(function (name) {
+        select.appendChild(el("option", { value: name }, [name]));
+      });
+      select.value = current;
+    });
+  }
+
+  ["filterSalesRep", "filterCsm", "filterImplementationManager"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", loadOverview);
+  });
+  document.getElementById("filterClearBtn").addEventListener("click", function () {
+    document.getElementById("filterSalesRep").value = "";
+    document.getElementById("filterCsm").value = "";
+    document.getElementById("filterImplementationManager").value = "";
+    loadOverview();
+  });
 
   function renderOverview(o) {
     var root = document.getElementById("overviewRoot");
@@ -300,6 +353,18 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
         el("span", { class: "value" }, [String(o.pipeline.openDealCount)]),
         el("span", { class: "label" }, ["Open deals"]),
       ]),
+      el("div", { class: "kpi-tile" }, [
+        el("span", { class: "value" }, [money(o.pipeline.newSales.amount)]),
+        el("span", { class: "label" }, ["New sales (" + o.pipeline.newSales.count + ")"]),
+      ]),
+      el("div", { class: "kpi-tile" }, [
+        el("span", { class: "value" }, [money(o.pipeline.upsell.amount)]),
+        el("span", { class: "label" }, ["Upsell (" + o.pipeline.upsell.count + ")"]),
+      ]),
+      el("div", { class: "kpi-tile" }, [
+        el("span", { class: "value" }, [money(o.pipeline.renewal.amount)]),
+        el("span", { class: "label" }, ["Renewal (" + o.pipeline.renewal.count + ")"]),
+      ]),
       el("div", { class: "kpi-tile" + (o.fictions.totalCount > 0 ? " tone-warn" : "") }, [
         el("span", { class: "value" }, [String(o.fictions.totalCount)]),
         el("span", { class: "label" }, ["Fictions flagged"]),
@@ -307,6 +372,10 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       el("div", { class: "kpi-tile" + (o.coverage.flaggedCount > 0 ? " tone-warn" : "") }, [
         el("span", { class: "value" }, [String(o.coverage.flaggedCount) + " / " + String(o.coverage.scannedCount)]),
         el("span", { class: "label" }, ["Coverage gaps"]),
+      ]),
+      el("div", { class: "kpi-tile" + (o.customerHealth.atRiskCount > 0 ? " tone-bad" : "") }, [
+        el("span", { class: "value" }, [String(o.customerHealth.atRiskCount)]),
+        el("span", { class: "label" }, ["At-risk customers"]),
       ]),
     ]);
     root.appendChild(kpis);
@@ -377,6 +446,39 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       renewalCard.appendChild(table);
     }
     rightCol.appendChild(renewalCard);
+
+    var healthCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Customer health"])]);
+    healthCard.appendChild(el("p", { class: "hint" }, [
+      "Average health: " + (o.customerHealth.averageHealth === null ? "—" : o.customerHealth.averageHealth.toFixed(1) + " / 10"),
+    ]));
+    if (o.customerHealth.atRiskCompanies.length === 0) {
+      healthCard.appendChild(el("p", { class: "empty" }, ["No at-risk accounts in scope."]));
+    } else {
+      o.customerHealth.atRiskCompanies.forEach(function (c) {
+        healthCard.appendChild(el("div", { class: "msg-line" }, [
+          el("span", { class: "from" }, [c.name]),
+          el("span", {}, ["health " + (c.healthScore === null ? "—" : c.healthScore) + " / 10"]),
+        ]));
+      });
+    }
+    rightCol.appendChild(healthCard);
+
+    var activityCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Slack activity, last " + o.activity.windowDays + " days"])]);
+    if (o.activity.byAccount.length === 0) {
+      activityCard.appendChild(el("p", { class: "empty" }, ["No accounts in scope."]));
+    } else {
+      var maxMsgs = Math.max.apply(null, o.activity.byAccount.map(function (a) { return a.messageCount; }));
+      o.activity.byAccount.forEach(function (a) {
+        var pct = maxMsgs > 0 ? Math.max(4, Math.round((a.messageCount / maxMsgs) * 100)) : 0;
+        activityCard.appendChild(el("div", { class: "bar-row" }, [
+          el("span", { class: "bar-label" }, [a.accountName]),
+          el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", style: "width:" + pct + "%" }, [])]),
+          el("span", { class: "bar-value" }, [String(a.messageCount)]),
+        ]));
+      });
+    }
+    rightCol.appendChild(activityCard);
+
     grid.appendChild(rightCol);
 
     root.appendChild(grid);

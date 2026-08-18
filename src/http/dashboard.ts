@@ -16,6 +16,11 @@ import { DASHBOARD_HTML } from "./dashboardPage.js";
 // the dashboard can never silently drift from what Claude itself enforces.
 const recentActivitySchema = z.object(recentActivityInput);
 const coverageCheckSchema = z.object(coverageCheckInput);
+const overviewFiltersSchema = z.object({
+  salesRep: z.string().min(1).max(120).optional(),
+  csm: z.string().min(1).max(120).optional(),
+  implementationManager: z.string().min(1).max(120).optional(),
+});
 
 export interface DashboardDeps {
   sf: SalesforceClient;
@@ -76,9 +81,10 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
     withAudit(
       "dashboard.overview",
       ["salesforce", "slack", "gong", "planhat"],
-      async () => ({
-        ...(await buildOverview(deps.sf, deps.slack, deps.gong, deps.planhat)),
-      }),
+      async (req) => {
+        const filters = overviewFiltersSchema.parse(req.query);
+        return { ...(await buildOverview(deps.sf, deps.slack, deps.gong, deps.planhat, undefined, filters)) };
+      },
     ),
   );
 
@@ -112,7 +118,9 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
         }
 
         const calls = await deps.gong.getCallsForOpportunity(opp.id, 5);
-        const messages = await deps.slack.getMessagesForOpportunity(opp.id, 20);
+        const messages = opp.accountName
+          ? await deps.slack.getMessagesForAccount(opp.accountName, 20)
+          : [];
 
         return {
           deal: {
