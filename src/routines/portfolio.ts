@@ -145,6 +145,7 @@ export function buildPortfolioSummary() {
       knownChurn: { names: sfSummary.known_churn, arr: arrOf(sfSummary.known_churn) },
       lowHealth: { names: sfSummary.low_health, arr: arrOf(sfSummary.low_health) },
       competitorEngaged: {
+        names: sfSummary.competitor_engaged,
         count: sfSummary.competitor_engaged.length,
         arr: arrOf(sfSummary.competitor_engaged),
       },

@@ -412,6 +412,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     </div>
     <div class="tiles" id="portfolioTiles"></div>
     <div class="riskstrip" id="portfolioRiskStrip"></div>
+    <div class="card" id="portfolioRiskDetailCard" style="display:none"></div>
     <div class="card">
       <p class="section-label">Top expansion opportunities</p>
       <div id="portfolioOps"></div>
@@ -449,6 +450,7 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       <p class="section-label">What customers are asking for</p>
       <div class="theme-bars" id="analyticsThemes"></div>
     </div>
+    <div class="card" id="themeDetailCard" style="display:none"></div>
     <div class="card">
       <p class="section-label">Ranked fit — all accounts</p>
       <div id="analyticsTiers"></div>
@@ -694,11 +696,15 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       var maxAmount = Math.max.apply(null, o.pipeline.byStage.map(function (s) { return s.amount; }));
       o.pipeline.byStage.forEach(function (s) {
         var pct = maxAmount > 0 ? Math.max(4, Math.round((s.amount / maxAmount) * 100)) : 0;
-        stageCard.appendChild(el("div", { class: "bar-row" }, [
+        var row = el("div", { class: "bar-row clickable-row" }, [
           el("span", { class: "bar-label" }, [s.stage + " (" + s.count + ")"]),
           el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", style: "width:" + pct + "%" }, [])]),
           el("span", { class: "bar-value" }, [money(s.amount)]),
-        ]));
+        ]);
+        row.addEventListener("click", function () {
+          showDealsList(o.pipeline.deals.filter(function (d) { return d.stage === s.stage; }), s.stage);
+        });
+        stageCard.appendChild(row);
       });
     }
     leftCol.appendChild(stageCard);
@@ -725,11 +731,26 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     // right column: fictions by severity + upcoming renewals
     var rightCol = el("div", { style: "display:flex; flex-direction:column; gap:16px" }, []);
 
-    var sevCard = el("div", { class: "card" }, [el("p", { class: "section-label" }, ["Fictions by severity"])]);
+    var sevCard = el("div", { class: "card" }, [
+      el("p", { class: "section-label" }, ["Fictions by severity"]),
+      el("p", { class: "hint", style: "margin:-4px 0 10px" }, [
+        "A “fiction” is pipeline data that looks fine on the surface but probably isn’t: a Planhat expansion signal with no real activity behind it, a renewal coming due with nothing tracking it in Salesforce, or a late-stage deal that’s gone quiet everywhere. Severity is how urgent each one is — see the Pipeline-pulse tab for the actual list.",
+      ]),
+    ]);
+    function severityTile(cls, count, label) {
+      var tile = el("div", { class: "severity-tile clickable-row " + cls }, [
+        el("span", { class: "count" }, [String(count)]), el("span", { class: "label" }, [label]),
+      ]);
+      tile.addEventListener("click", function () {
+        activateTab("pulse");
+        document.getElementById("pulseRunBtn").click();
+      });
+      return tile;
+    }
     var sevRow = el("div", { class: "severity-tiles" }, [
-      el("div", { class: "severity-tile high" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.high)]), el("span", { class: "label" }, ["High"])]),
-      el("div", { class: "severity-tile medium" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.medium)]), el("span", { class: "label" }, ["Medium"])]),
-      el("div", { class: "severity-tile low" }, [el("span", { class: "count" }, [String(o.fictions.bySeverity.low)]), el("span", { class: "label" }, ["Low"])]),
+      severityTile("high", o.fictions.bySeverity.high, "High"),
+      severityTile("medium", o.fictions.bySeverity.medium, "Medium"),
+      severityTile("low", o.fictions.bySeverity.low, "Low"),
     ]);
     sevCard.appendChild(sevRow);
     rightCol.appendChild(sevCard);
@@ -1061,7 +1082,12 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     if (body.proposedProjects && body.proposedProjects.length > 0) {
       pulseResultsCard.appendChild(el("p", { class: "section-label", style: "margin-top:18px" }, ["Proposed Planhat projects (not created — dry run)"]));
       body.proposedProjects.forEach(function (p) {
-        pulseResultsCard.appendChild(el("div", { class: "msg-line" }, [el("span", { class: "from" }, [p.companyId]), el("span", {}, [p.name])]));
+        var owner = body.candidates.find(function (c) { return c.planhatCompanyId === p.companyId; });
+        var line = el("div", { class: "msg-line" + (owner ? " clickable-row" : "") }, [
+          el("span", { class: "from" }, [owner ? owner.accountName : p.companyId]), el("span", {}, [p.name]),
+        ]);
+        if (owner) line.addEventListener("click", function () { goToAccountByName(owner.accountName); });
+        pulseResultsCard.appendChild(line);
       });
     }
   }
@@ -1216,22 +1242,42 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     var strip = document.getElementById("portfolioRiskStrip");
     strip.innerHTML = "";
     var rs = o.riskStrip;
-    strip.appendChild(el("div", { class: "riskcard bad" }, [
-      el("div", { class: "rt" }, ["Known churn"]),
-      el("div", { class: "rv" }, [(rs.knownChurn.names.join(" · ") || "None") + " (" + money(rs.knownChurn.arr) + ")"]),
-    ]));
-    strip.appendChild(el("div", { class: "riskcard bad" }, [
-      el("div", { class: "rt" }, ["Health ≤ 3"]),
-      el("div", { class: "rv" }, [(rs.lowHealth.names.join(" · ") || "None") + " (" + money(rs.lowHealth.arr) + ")"]),
-    ]));
-    strip.appendChild(el("div", { class: "riskcard warn" }, [
-      el("div", { class: "rt" }, ["Competitor engaged"]),
-      el("div", { class: "rv" }, [rs.competitorEngaged.count + " accounts (" + money(rs.competitorEngaged.arr) + ")"]),
-    ]));
-    strip.appendChild(el("div", { class: "riskcard warn" }, [
-      el("div", { class: "rt" }, ["Any risk flag"]),
-      el("div", { class: "rv" }, [rs.flaggedCount + " of " + rs.matched + " accounts"]),
-    ]));
+
+    function riskCard(cls, label, valueText, names) {
+      var card = el("div", { class: "riskcard " + cls + (names ? " clickable-row" : "") }, [
+        el("div", { class: "rt" }, [label]),
+        el("div", { class: "rv" }, [valueText]),
+      ]);
+      if (names) card.addEventListener("click", function () { showRiskAccountList(label, names); });
+      return card;
+    }
+    strip.appendChild(riskCard("bad", "Known churn", (rs.knownChurn.names.join(" · ") || "None") + " (" + money(rs.knownChurn.arr) + ")", rs.knownChurn.names));
+    strip.appendChild(riskCard("bad", "Health ≤ 3", (rs.lowHealth.names.join(" · ") || "None") + " (" + money(rs.lowHealth.arr) + ")", rs.lowHealth.names));
+    strip.appendChild(riskCard("warn", "Competitor engaged", rs.competitorEngaged.count + " accounts (" + money(rs.competitorEngaged.arr) + ")", rs.competitorEngaged.names));
+    // "Any risk flag" is an aggregate count across flag types this dataset doesn't break out by name -- left non-interactive rather than fabricate a list.
+    strip.appendChild(riskCard("warn", "Any risk flag", rs.flaggedCount + " of " + rs.matched + " accounts", null));
+
+    function showRiskAccountList(label, names) {
+      var card = document.getElementById("portfolioRiskDetailCard");
+      card.innerHTML = "";
+      card.style.display = "block";
+      var closeBtn = el("button", { class: "action" }, ["Close"]);
+      closeBtn.addEventListener("click", function () { card.style.display = "none"; });
+      card.appendChild(el("div", { class: "row", style: "justify-content:space-between; align-items:baseline; margin-bottom:8px" }, [
+        el("p", { class: "section-label", style: "margin:0" }, [label]),
+        closeBtn,
+      ]));
+      if (names.length === 0) {
+        card.appendChild(el("p", { class: "empty" }, ["None."]));
+      } else {
+        names.forEach(function (name) {
+          var row = el("div", { class: "msg-line clickable-row" }, [el("span", { class: "from" }, [name])]);
+          row.addEventListener("click", function () { goToAccountByName(name); });
+          card.appendChild(row);
+        });
+      }
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
 
     var ops = document.getElementById("portfolioOps");
     ops.innerHTML = "";
@@ -1371,6 +1417,25 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       sf.flags.forEach(function (f) { flags.appendChild(el("span", { class: "rflag" }, [f])); });
       panel.appendChild(flags);
     }
+    if (sf.opps && sf.opps.length > 0) {
+      var oppsTable = el("table", { style: "margin-top:12px" }, [
+        el("thead", {}, [el("tr", {}, [el("th", {}, ["Closed"]), el("th", {}, ["Opportunity"]), el("th", {}, ["Type"]), el("th", {}, ["Amount"]), el("th", {}, ["Owner"])])]),
+      ]);
+      var oppsBody = el("tbody", {}, []);
+      sf.opps.forEach(function (o) {
+        var tr = el("tr", { class: "clickable-row" }, [
+          td(o.closed), td(o.name), td(o.type), td(money(o.amount)), td(o.owner),
+        ]);
+        tr.addEventListener("click", function () {
+          activateTab("lookup");
+          dealQuery.value = o.name;
+          runDealSearch();
+        });
+        oppsBody.appendChild(tr);
+      });
+      oppsTable.appendChild(oppsBody);
+      panel.appendChild(oppsTable);
+    }
     return panel;
   }
 
@@ -1481,35 +1546,68 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
     document.getElementById("analyticsMetaHint").textContent =
       s.withSignal + " of " + s.covered + " accounts show a live Gong signal for an analytics offering.";
 
+    function scrollToSelector(sel) {
+      var el2 = document.querySelector(sel);
+      if (el2) el2.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     var tiles = document.getElementById("analyticsTiles");
     tiles.innerHTML = "";
-    tiles.appendChild(el("div", { class: "tile hero" }, [
+    var heroTile = el("div", { class: "tile hero" }, [
       el("div", { class: "n" }, [s.withSignal + "/" + s.covered]),
       el("div", { class: "cap" }, ["Accounts with a live analytics ask"]),
-    ]));
-    tiles.appendChild(el("div", { class: "tile" }, [
+    ]);
+    heroTile.addEventListener("click", function () { scrollToSelector("#analyticsTiers"); });
+    tiles.appendChild(heroTile);
+    var tier1CountTile = el("div", { class: "tile" }, [
       el("div", { class: "n" }, [String(s.tier1Count)]),
       el("div", { class: "cap" }, ["Design-partner ready (Tier 1)"]),
-    ]));
-    tiles.appendChild(el("div", { class: "tile" }, [
+    ]);
+    tier1CountTile.addEventListener("click", function () { scrollToSelector(".tiergroup.tier1"); });
+    tiles.appendChild(tier1CountTile);
+    var tier1ArrTile = el("div", { class: "tile" }, [
       el("div", { class: "n" }, [money(s.tier1Arr)]),
       el("div", { class: "cap" }, ["Tier 1 combined ARR"]),
-    ]));
-    tiles.appendChild(el("div", { class: "tile" }, [
+    ]);
+    tier1ArrTile.addEventListener("click", function () { scrollToSelector(".tiergroup.tier1"); });
+    tiles.appendChild(tier1ArrTile);
+    var topThemeTile = el("div", { class: "tile" }, [
       el("div", { class: "n" }, [String(s.topThemeCount)]),
       el("div", { class: "cap" }, ["Asking for: " + s.topThemeLabel]),
-    ]));
+    ]);
+    topThemeTile.addEventListener("click", function () { scrollToSelector("#analyticsThemes"); });
+    tiles.appendChild(topThemeTile);
 
     var themes = document.getElementById("analyticsThemes");
     themes.innerHTML = "";
     a.themes.forEach(function (t) {
       var pct = s.covered > 0 ? Math.round((t.count / s.covered) * 100) : 0;
-      themes.appendChild(el("div", { class: "theme-bar" }, [
+      var row = el("div", { class: "theme-bar clickable-row" }, [
         el("div", { class: "tb-label" }, [t.label]),
         el("div", { class: "tb-track" }, [el("div", { class: "tb-fill", style: "width:" + pct + "%" }, [])]),
         el("div", { class: "tb-count" }, [t.count + "/" + s.covered]),
-      ]));
+      ]);
+      row.addEventListener("click", function () { showThemeAccountList(t.label, t.accounts); });
+      themes.appendChild(row);
     });
+
+    function showThemeAccountList(label, names) {
+      var card = document.getElementById("themeDetailCard");
+      card.innerHTML = "";
+      card.style.display = "block";
+      var closeBtn = el("button", { class: "action" }, ["Close"]);
+      closeBtn.addEventListener("click", function () { card.style.display = "none"; });
+      card.appendChild(el("div", { class: "row", style: "justify-content:space-between; align-items:baseline; margin-bottom:8px" }, [
+        el("p", { class: "section-label", style: "margin:0" }, [label + " — " + names.length + " account(s)"]),
+        closeBtn,
+      ]));
+      names.forEach(function (name) {
+        var row = el("div", { class: "msg-line clickable-row" }, [el("span", { class: "from" }, [name])]);
+        row.addEventListener("click", function () { goToAccountByName(name); });
+        card.appendChild(row);
+      });
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
 
     var tiersRoot = document.getElementById("analyticsTiers");
     tiersRoot.innerHTML = "";
