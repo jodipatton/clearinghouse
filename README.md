@@ -38,6 +38,23 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   `pipeline-pulse`: same fiction detection (`ghost_expansion`,
   `renewal_blindspot`, `stale_momentum`), answered inline instead of on a
   schedule, and it never proposes or writes anything to Planhat.
+- **`portfolio_account`** — fuzzy-name lookup of one of the 43 CMS-0057
+  portfolio accounts: the hand-researched dossier (architecture, financial
+  signals, key people, risks and blockers, points of interest, ranked
+  expansion plays) plus a live layer on top — a matching Salesforce
+  opportunity if one resolves, that deal's recent Gong calls, and 60-day
+  Slack activity on the account channel. The Claude-facing sibling of the
+  dashboard's Customers tab; see "Local dashboard" below for where the
+  research itself comes from.
+- **`clinical_connect_status`** — no input needed: status of the four
+  Clinical Connect accounts (Fallon, Capital Health Plan, Viva Health, Zing
+  Health), each split into what's going well (implementation momentum,
+  active expansion plays), what isn't (the research's own "Risks &
+  Blockers" write-up plus Salesforce health flags), meetings (live Gong
+  calls, when a live deal resolved), and customer insights (key people,
+  points of interest, live Slack activity, sources). The split groups this
+  research's own fields — it is not a generated verdict. The Claude-facing
+  sibling of the dashboard's Clinical Connect tab.
 - **Roster gate** — Git-backed `roster.json`, deny by default, denial audited.
 - **Audit** — every tool call logged as one JSON line (actor, tool, args,
   systems, bytes, latency) for the Cloud Logging → BigQuery sink.
@@ -51,7 +68,8 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
   `renewal_blindspot`, `stale_momentum`). See below.
 - **`/dashboard`** — a browser UI behind the same roster gate as `/mcp`, for
   people who want the data directly instead of asking Claude: deal lookup,
-  a pipeline-pulse review board, and roster/audit admin. See below.
+  a pipeline-pulse review board, the CMS-0057 portfolio and Clinical Connect
+  views, and roster/audit admin. See below.
 
 Not yet built (Week 5+): the Gong nightly index that replaces the window
 scan, per-person budgets, directory sync.
@@ -186,7 +204,15 @@ conversation. For anyone who wants to look something up directly, or for
 demoing/debugging without going through Claude at all. Vanilla JS, no build
 step, no separate deploy.
 
-Six tabs:
+Styled to match 1up.health's own brand (Urbanist/Nunito Sans, teal-on-navy),
+in both light and dark. Beyond each tab's own content, every row/tile that
+represents a real deal or account is clickable straight through to its
+detail — an Overview renewal, at-risk company, or flagged fiction; a Recent
+activity, Coverage check, or Pipeline-pulse row; a Portfolio/Analytics-fit
+account — landing on that deal in Deal lookup or that account's Portfolio
+dossier (`goToDeal`/`goToAccountByName` in `dashboardPage.ts`).
+
+Ten tabs:
 
 - **Overview** — the default landing tab: a RevOps one-page rollup instead of
   five separate places to look. Open pipeline split into new sales / upsell /
@@ -217,10 +243,38 @@ Six tabs:
   same underlying scan, so this tab already covers it; `pipeline_snapshot`
   exists as its own MCP tool because Claude needs a read-only-only version
   with no proposed-projects section at all.)
+- **Portfolio**, **Customers**, **Analytics fit** — the "1upHealth Customer
+  Intelligence — CMS-0057 Portfolio" research (43 accounts: architecture,
+  financials, people, risks, ranked expansion plays, and a Gong-sourced
+  analytics-demand study with a product pitch and gap analysis), folded into
+  this server. **Static, point-in-time research, not a live read** — ported
+  verbatim into `src/portfolio/data.ts`, refreshed by hand, not regenerated
+  from the Salesforce/Planhat/Gong adapters the rest of this dashboard uses.
+  Portfolio is the top-line rollup + top expansion plays; Customers is the
+  searchable/filterable directory and per-account dossier; Analytics fit is
+  the capability-tier study. A dossier cross-links to a **live** Salesforce
+  opportunity by account name when one resolves (`getPortfolioAccount` in
+  `src/routines/portfolio.ts`), same `normalizeName` join
+  `src/fictions/match.ts` uses elsewhere — otherwise it offers a real Deal
+  lookup search instead. Free-text research fields (Gong quotes, risk notes)
+  render through an allowlist DOM builder (`renderRichHtml`), never raw
+  `innerHTML`, matching this file's rule for anything ultimately grounded in
+  external-system content.
+- **Clinical Connect** — a fixed four-account cohort (Fallon, Capital Health
+  Plan, Viva Health, Zing Health), each laid out in the same four buckets as
+  the `clinical_connect_status` MCP tool: what's going well (implementation
+  status, active expansion plays), what isn't (the research's own "Risks &
+  Blockers" text, plus any Salesforce health flags), meetings (live Gong
+  calls, only when a live Salesforce opportunity resolved), and customer
+  insights (key people, points of interest, live 60-day Slack activity,
+  sources). The account list itself is named by Jodi, not derived from any
+  field (`clinicalConnectAccountIds` in `src/routines/portfolio.ts`) — the
+  going-well/not-well split is a grouping of existing research fields, never
+  a generated verdict.
 - **Admin & audit** — the roster's members, and a live tail of the most
   recent audit events (in-memory, capped, lost on restart — the durable trail
   is still Cloud Logging → BigQuery; this is a convenience view, not a second
-  source of truth).
+  source of truth). Audit rows expand on click to the full event JSON.
 
 Free text from external systems (deal descriptions, Slack messages, Gong call
 titles) is written into the page with `textContent`, never `innerHTML` — same

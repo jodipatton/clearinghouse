@@ -4,7 +4,7 @@ import type { GongClient } from "../gong/types.js";
 import type { PlanhatClient, PlanhatCompany } from "../planhat/types.js";
 import type { Fiction } from "../fictions/types.js";
 import { detectFictions, DEFAULT_DETECTOR_CONFIG } from "../fictions/detect.js";
-import { normalizeName, isOpenStage, classifyPipelineCategory } from "../fictions/match.js";
+import { normalizeName, isOpenStage, classifyPipelineCategory, type PipelineCategory } from "../fictions/match.js";
 import { daysBetween } from "../fictions/dates.js";
 import { checkCoverage, type CoverageResult } from "../tools/coverageCheck.js";
 
@@ -27,6 +27,17 @@ export interface PipelineByStage {
   stage: string;
   count: number;
   amount: number;
+}
+
+/** One open opportunity, tagged with the same category its amount was rolled up into -- lets the dashboard show "the deals behind $730k" instead of just the number. */
+export interface PipelineDeal {
+  id: string;
+  name: string;
+  account: string | null;
+  stage: string;
+  owner: string | null;
+  amount: number | null;
+  category: PipelineCategory;
 }
 
 export interface UpcomingRenewal {
@@ -59,6 +70,8 @@ export interface Overview {
     upsell: { count: number; amount: number };
     renewal: { count: number; amount: number };
     byStage: PipelineByStage[];
+    /** Every open deal in scope, tagged by category -- what the KPI tiles above are counting/summing. */
+    deals: PipelineDeal[];
   };
   fictions: {
     totalCount: number;
@@ -177,6 +190,7 @@ export async function buildOverview(
     upsell: { count: 0, amount: 0 },
     renewal: { count: 0, amount: 0 },
   };
+  const deals: PipelineDeal[] = [];
   for (const o of openOnly) {
     const entry = byStageMap.get(o.stage) ?? { stage: o.stage, count: 0, amount: 0 };
     entry.count += 1;
@@ -184,9 +198,18 @@ export async function buildOverview(
     byStageMap.set(o.stage, entry);
 
     const company = o.accountName ? companyByAccountName.get(normalizeName(o.accountName)) : undefined;
-    const category = classifyPipelineCategory(o.stage, company?.status ?? null);
+    const category: PipelineCategory = classifyPipelineCategory(o.stage, company?.status ?? null);
     byCategory[category].count += 1;
     byCategory[category].amount += o.amount ?? 0;
+    deals.push({
+      id: o.id,
+      name: o.name,
+      account: o.accountName,
+      stage: o.stage,
+      owner: o.ownerName,
+      amount: o.amount,
+      category,
+    });
   }
   const byStage = [...byStageMap.values()].sort((a, b) => b.amount - a.amount);
 
@@ -260,6 +283,7 @@ export async function buildOverview(
       upsell: byCategory.upsell,
       renewal: byCategory.renewal,
       byStage,
+      deals,
     },
     fictions: {
       totalCount: candidates.length,

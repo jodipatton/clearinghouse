@@ -10,6 +10,11 @@ import { runPipelinePulse } from "../routines/pipelinePulse.js";
 import { buildOverview } from "../routines/overview.js";
 import { recentActivity, recentActivityInput } from "../tools/recentActivity.js";
 import { coverageCheck, coverageCheckInput } from "../tools/coverageCheck.js";
+import {
+  buildPortfolioSummary,
+  getPortfolioAccount,
+  buildAnalyticsFit,
+} from "../routines/portfolio.js";
 import { DASHBOARD_HTML } from "./dashboardPage.js";
 
 // Reuses each MCP tool's own zod input shape for query-string validation, so
@@ -173,6 +178,31 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
       const args = coverageCheckSchema.parse(req.query);
       return coverageCheck(deps.sf, deps.slack, deps.gong, args);
     }),
+  );
+
+  router.get(
+    "/api/portfolio",
+    withAudit("dashboard.portfolio", ["portfolio-research"], async () => ({
+      ...buildPortfolioSummary(),
+    })),
+  );
+
+  router.get(
+    "/api/portfolio/accounts/:id",
+    withAudit("dashboard.portfolio_account", ["portfolio-research", "salesforce", "slack", "gong"], async (req) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return { error: "Invalid account id." };
+      const account = await getPortfolioAccount(id, deps.sf, deps.slack, deps.gong);
+      if (!account) return { error: "No portfolio account with that id." };
+      return account;
+    }),
+  );
+
+  router.get(
+    "/api/portfolio/analytics",
+    withAudit("dashboard.portfolio_analytics", ["portfolio-research"], async () => ({
+      ...buildAnalyticsFit(),
+    })),
   );
 
   router.get(

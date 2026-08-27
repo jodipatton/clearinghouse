@@ -31,6 +31,15 @@ import {
   pipelineSnapshotDescription,
   pipelineSnapshotInput,
 } from "../tools/pipelineSnapshot.js";
+import {
+  portfolioAccount,
+  portfolioAccountDescription,
+  portfolioAccountInput,
+} from "../tools/portfolioAccount.js";
+import {
+  clinicalConnectStatus,
+  clinicalConnectStatusDescription,
+} from "../tools/clinicalConnectStatus.js";
 
 export interface RequestContext {
   actor: string;
@@ -168,6 +177,30 @@ export function buildServer(ctx: RequestContext): McpServer {
         ["salesforce", "planhat"],
         { minSeverity: args.minSeverity },
         () => pipelineSnapshot(ctx.sf, ctx.planhat, args),
+      ),
+  );
+
+  server.registerTool(
+    "portfolio_account",
+    { description: portfolioAccountDescription, inputSchema: portfolioAccountInput },
+    (args) =>
+      run(
+        "portfolio_account",
+        ["portfolio-research", "salesforce", "slack", "gong"],
+        { name: args.name },
+        () => portfolioAccount(ctx.sf, ctx.slack, ctx.gong, args),
+      ),
+  );
+
+  server.registerTool(
+    "clinical_connect_status",
+    { description: clinicalConnectStatusDescription, inputSchema: {} },
+    () =>
+      run(
+        "clinical_connect_status",
+        ["portfolio-research", "salesforce", "slack", "gong"],
+        {},
+        () => clinicalConnectStatus(ctx.sf, ctx.slack, ctx.gong),
       ),
   );
 
