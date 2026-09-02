@@ -7,3 +7,6 @@ dist/
 
 # Never committed: real customer data pulled in for local-only demos.
 .local/
+
+# L10 meeting state -- runtime data the service writes, not source.
+l10-state.json

@@ -3,6 +3,8 @@ import type {
   PlanhatCompany,
   PlanhatProject,
   PlanhatProjectDraft,
+  PlanhatTask,
+  PlanhatTaskDraft,
   PlanhatUser,
 } from "./types.js";
 import { FIXTURES, USER_FIXTURES } from "./fixtures.js";
@@ -10,8 +12,11 @@ import { FIXTURES, USER_FIXTURES } from "./fixtures.js";
 /** Fixture-backed client for local dev and tests, mirroring MockSalesforce. */
 export class MockPlanhat implements PlanhatClient {
   private nextSeq = 1;
+  private nextTaskSeq = 1;
   /** Inspectable in tests — the dry-run guarantee is asserted against this. */
   public readonly createdProjects: PlanhatProject[] = [];
+  /** Inspectable in tests — the L10 "solve & create to-do" write is asserted against this. */
+  public readonly createdTasks: PlanhatTask[] = [];
 
   constructor(
     private readonly data: PlanhatCompany[] = FIXTURES,
@@ -38,5 +43,15 @@ export class MockPlanhat implements PlanhatClient {
     };
     this.createdProjects.push(project);
     return project;
+  }
+
+  async createTask(draft: PlanhatTaskDraft): Promise<PlanhatTask> {
+    const task: PlanhatTask = {
+      id: `mock-task-${this.nextTaskSeq++}`,
+      companyId: draft.companyId,
+      action: draft.action,
+    };
+    this.createdTasks.push(task);
+    return task;
   }
 }

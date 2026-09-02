@@ -4,6 +4,8 @@ import type {
   PlanhatCompanyStatus,
   PlanhatProject,
   PlanhatProjectDraft,
+  PlanhatTask,
+  PlanhatTaskDraft,
   PlanhatUser,
 } from "./types.js";
 
@@ -61,6 +63,12 @@ interface RawProject {
   _id: string;
   companyId: string;
   name: string;
+}
+
+interface RawTask {
+  _id: string;
+  companyId: string;
+  action: string;
 }
 
 export class LivePlanhat implements PlanhatClient {
@@ -141,5 +149,34 @@ export class LivePlanhat implements PlanhatClient {
       }),
     });
     return { id: record._id, companyId: record.companyId, name: record.name };
+  }
+
+  /**
+   * Field names confirmed against the real Task schema (2026-09): the title
+   * field is `action`, not `name` -- Task and Project ("Goal") are different
+   * shapes. `mainType: "task"` distinguishes a to-do from a calendar event
+   * (the only other option), and is one of only two fields the real schema
+   * marks required (the other is companyId). Priority rides on the tenant's
+   * `custom.Priority` list field (Low/Medium/High) since Task has no
+   * built-in priority field. Unverified against a real tenant, same "don't
+   * flip ROUTINES_DRY_RUN=false" caveat as createProject -- and this one is
+   * additionally reachable straight from a browser click (L10's "Solve &
+   * create to-do"), a deliberate, scoped exception to this app's normal
+   * no-dashboard-writes rule.
+   */
+  async createTask(draft: PlanhatTaskDraft): Promise<PlanhatTask> {
+    const record = await this.request<RawTask>("/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        mainType: "task",
+        companyId: draft.companyId,
+        action: draft.action,
+        description: draft.description,
+        ownerId: draft.ownerId,
+        endTime: draft.dueDate,
+        ...(draft.priority ? { "custom.Priority": draft.priority } : {}),
+      }),
+    });
+    return { id: record._id, companyId: record.companyId, action: record.action };
   }
 }

@@ -69,6 +69,33 @@ export interface PlanhatUser {
   email: string;
 }
 
+/**
+ * Confirmed against the real Task schema (2026-09, via the Planhat MCP
+ * connector's get_model_action_parameters). Task's title field is `action`,
+ * not `name` -- Task and Project/"Goal" are not the same shape. `companyId`
+ * is the only field besides `mainType` the real schema marks required, so
+ * every L10 to-do pushed here must resolve to a real Planhat company; there
+ * is no company-less Task.
+ */
+export interface PlanhatTaskDraft {
+  companyId: string;
+  /** Maps to Task's `action` field (its title/synonym: "summary", "subject"). */
+  action: string;
+  description?: string;
+  /** Task's `ownerId` -- a real Planhat User _id, resolved via listUsers(). Omit when no confident name match exists. */
+  ownerId?: string;
+  /** ISO date -- Task's `endTime` (due date). */
+  dueDate?: string;
+  /** Maps to Task's `custom.Priority` list field (Low/Medium/High). */
+  priority?: "Low" | "Medium" | "High";
+}
+
+export interface PlanhatTask {
+  id: string;
+  companyId: string;
+  action: string;
+}
+
 export interface PlanhatClient {
   /** Unfiltered bulk read, bounded. For scans (e.g. pipeline-pulse), not for MCP tools. */
   listCompanies(limit: number): Promise<PlanhatCompany[]>;
@@ -87,4 +114,13 @@ export interface PlanhatClient {
    * unconfirmed against a real tenant.
    */
   createProject(draft: PlanhatProjectDraft): Promise<PlanhatProject>;
+  /**
+   * A real, visible write, same caller discipline as createProject — except
+   * this one IS reachable directly from a browser click (the L10 dashboard
+   * tab's "Solve & create to-do" button), a deliberate, scoped exception to
+   * this app's "no write tools ever reachable from the dashboard" rule (see
+   * buildDashboardRouter's doc comment in src/http/dashboard.ts). Confirm
+   * with the user before calling this outside of L10.
+   */
+  createTask(draft: PlanhatTaskDraft): Promise<PlanhatTask>;
 }

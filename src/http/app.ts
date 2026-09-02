@@ -7,6 +7,7 @@ import type { SlackClient } from "../slack/types.js";
 import type { GongClient } from "../gong/types.js";
 import type { PlanhatClient } from "../planhat/types.js";
 import { Roster } from "../roster.js";
+import { L10Store } from "../l10/store.js";
 import { bearerAuth, metadataUrl } from "./auth.js";
 import { buildServer } from "../mcp/server.js";
 import { buildRoutinesRouter } from "./routines.js";
@@ -21,6 +22,7 @@ export interface AppDeps {
   roster?: Roster;
   /** Backs /dashboard's audit tab; a no-op empty list if omitted (e.g. in tests). */
   recentAudit?: () => RecordedAuditEvent[];
+  l10Store?: L10Store;
 }
 
 export function createApp(cfg: Config, deps: AppDeps): Express {
@@ -28,6 +30,7 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
   app.use(express.json({ limit: "1mb" }));
 
   const roster = deps.roster ?? new Roster(cfg.ROSTER_PATH);
+  const l10Store = deps.l10Store ?? new L10Store(cfg.L10_STATE_PATH);
 
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true });
@@ -71,6 +74,7 @@ export function createApp(cfg: Config, deps: AppDeps): Express {
       roster,
       audit: deps.audit,
       recentAudit: deps.recentAudit ?? (() => []),
+      l10Store,
     }),
   );
 

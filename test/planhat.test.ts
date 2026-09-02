@@ -28,4 +28,17 @@ describe("MockPlanhat", () => {
     expect(planhat.createdProjects).toHaveLength(1);
     expect(planhat.createdProjects[0]).toEqual(project);
   });
+
+  it("records created tasks for tests to assert against (the L10 solve-to-Planhat hook point)", async () => {
+    const planhat = new MockPlanhat();
+    const task = await planhat.createTask({
+      companyId: "ph_acme",
+      action: "Follow up on renewal",
+      priority: "High",
+    });
+    expect(task.companyId).toBe("ph_acme");
+    expect(task.action).toBe("Follow up on renewal");
+    expect(planhat.createdTasks).toHaveLength(1);
+    expect(planhat.createdTasks[0]).toEqual(task);
+  });
 });

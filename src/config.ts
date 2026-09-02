@@ -75,6 +75,13 @@ const schema = z
       .transform((v) => v !== "false"),
 
     ROSTER_PATH: z.string().default("roster.json"),
+
+    // --- L10 Implementation Review (dashboard tab) ---
+    // Meeting-in-progress state (issues/to-dos/scores/facilitator) -- unlike
+    // roster.json this is dynamic runtime data the service itself writes,
+    // never a Git-tracked file.
+    L10_STATE_PATH: z.string().default("l10-state.json"),
+
     NODE_ENV: z.string().default("development"),
   })
   .superRefine((cfg, ctx) => {
