@@ -69,7 +69,8 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
 - **`/dashboard`** — a browser UI behind the same roster gate as `/mcp`, for
   people who want the data directly instead of asking Claude: deal lookup,
   a pipeline-pulse review board, the CMS-0057 portfolio and Clinical Connect
-  views, and roster/audit admin. See below.
+  views, roster/audit admin, and the L10 Implementation Review meeting tool.
+  See below.
 
 Not yet built (Week 5+): the Gong nightly index that replaces the window
 scan, per-person budgets, directory sync.
@@ -212,7 +213,7 @@ activity, Coverage check, or Pipeline-pulse row; a Portfolio/Analytics-fit
 account — landing on that deal in Deal lookup or that account's Portfolio
 dossier (`goToDeal`/`goToAccountByName` in `dashboardPage.ts`).
 
-Ten tabs:
+Eleven tabs:
 
 - **Overview** — the default landing tab: a RevOps one-page rollup instead of
   five separate places to look. Open pipeline split into new sales / upsell /
@@ -236,13 +237,15 @@ Ten tabs:
 - **Pipeline-pulse** — a "Run pipeline-pulse (dry run)" button that lists the
   fictions it finds and the Planhat projects it would propose. This button
   **always** forces `dryRun: true`, regardless of `ROUTINES_DRY_RUN` in
-  config — a person clicking a button in a browser should never be the thing
-  that writes to Planhat; only the Cloud Scheduler-triggered
+  config — a person clicking this particular button should never be the
+  thing that writes to Planhat; only the Cloud Scheduler-triggered
   `/routines/pipeline-pulse` path can do that, and only once (1) in that
   section's runbook is done. (No separate tab for `pipeline_snapshot` —
   same underlying scan, so this tab already covers it; `pipeline_snapshot`
   exists as its own MCP tool because Claude needs a read-only-only version
-  with no proposed-projects section at all.)
+  with no proposed-projects section at all. The L10 tab below is the one
+  deliberate exception to "no writes from a browser click" — see its own
+  entry.)
 - **Portfolio**, **Customers**, **Analytics fit** — the "1upHealth Customer
   Intelligence — CMS-0057 Portfolio" research (43 accounts: architecture,
   financials, people, risks, ranked expansion plays, and a Gong-sourced
@@ -275,6 +278,27 @@ Ten tabs:
   recent audit events (in-memory, capped, lost on restart — the durable trail
   is still Cloud Logging → BigQuery; this is a convenience view, not a second
   source of truth). Audit rows expand on click to the full event JSON.
+- **L10** — runs the bi-weekly cross-functional Implementation Review meeting
+  (Segue → Reporting → To-Do Review → IDS → Close), ported from a standalone
+  artifact. State (issues, to-dos, scores, facilitator) persists to
+  `L10_STATE_PATH` (`l10-state.json`, gitignored — runtime data, not source),
+  not `roster.json`'s Git-backed pattern. Reporting/Rocks rows carry a
+  "Refresh live signal" pull of Slack/Salesforce/Gong evidence plus the
+  Portfolio tab's own research, for a tracked set of accounts
+  (`L10_TRACKED_ACCOUNTS` in `src/routines/l10.ts`) — it only ever surfaces
+  evidence, never a computed on-/off-track verdict; that call stays human,
+  same as the meeting format itself. **"Solve & create to-do" is this
+  server's one write path reachable directly from a browser click** — a
+  deliberate, scoped exception to "Deliberately not building" below,
+  confirmed with Jodi 2026-09-01: it creates a real Planhat Task, gated on
+  (a) the issue resolving to one real account (Task requires a `companyId`;
+  an issue with no single account, e.g. most engineering/process issues,
+  can only ever be solved locally) and (b) an explicit confirm-dialog
+  acknowledgement in the browser each time. `PlanhatClient.createTask`'s
+  field mapping is confirmed against Planhat's real Task schema (2026-09,
+  via the Planhat MCP connector) but — same caveat as `createProject` —
+  unverified against a real tenant end-to-end; check one real write before
+  relying on it.
 
 Free text from external systems (deal descriptions, Slack messages, Gong call
 titles) is written into the page with `textContent`, never `innerHTML` — same
@@ -356,7 +380,15 @@ Whichever of WorkOS AuthKit / Auth0 / Stytch / Descope is chosen, on
 
 No workspace-wide Slack search, no stored Slack messages, **no write tools in
 the Claude-facing connector, ever**, no admin tools inside the connector (PRD
-§06). The one write path in this repo — `pipeline-pulse` creating draft
-Planhat projects — is a separate service-to-service routine Claude can never
-reach, dry-run by default, and still gated on an unverified field mapping
-(see above).
+§06). This is still true of `/mcp` — nothing Claude can call ever writes
+anywhere. Within `/dashboard` (a human, not Claude, in the browser) there are
+two write paths, both narrow and both opt-in each time, never silent:
+`pipeline-pulse` creating draft Planhat projects — a separate
+service-to-service routine reachable only via `/routines/pipeline-pulse`
+with `ROUTINES_SHARED_SECRET`, dry-run by default, and the dashboard's own
+preview button always forces dry-run regardless of config — and the L10
+tab's "Solve & create to-do," a deliberate exception that *does* write a
+real Planhat Task straight from a browser click (see the L10 tab entry
+above for its gating). Both remain gated on unverified field mappings — see
+their respective sections above before relying on either against a real
+tenant.
