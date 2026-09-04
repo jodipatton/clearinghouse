@@ -75,6 +75,54 @@ PRD (v1.0 draft, 2026-08-05): the Claude artifact "Clearinghouse — PRD".
 Not yet built (Week 5+): the Gong nightly index that replaces the window
 scan, per-person budgets, directory sync.
 
+## Direction change — eng leadership review (2026-09-04)
+
+Four points from an engineering-leadership review of this project, all still
+open, all shaping the Week 5+ build before anything moves toward a real
+deploy:
+
+1. **SPA → separate linkable routes — done (2026-09-04).** `/dashboard` used
+   to be one HTML shell (`DASHBOARD_HTML`, formerly `src/http/dashboardPage.ts`)
+   with client-side JS toggling `.panel.active` across 11 tabs — no per-tab
+   URL, nothing deep-linkable or shareable. It's now one real route per
+   section (`src/http/pages/*.ts`, mounted in `src/http/dashboard.ts`; see
+   "Local dashboard" below) — the Express equivalent of "one route per
+   section," not a literal Flask rewrite. A literal blueprint/
+   `app_registry.py` structure only applies if Decision (4) below lands
+   inside 1up-web itself, at which point this would get ported to that
+   pattern for real.
+2. **Beyond mock data: the already-connected Claude connectors, not new
+   service credentials.** The live-mode plumbing this README documents
+   below (Salesforce JWT bearer flow, Gong API key, Slack bot token, Planhat
+   API token, all via GCP Secret Manager) is a *second, heavier* path this
+   project built toward — standing up this server's own credentialed access
+   to each system. Leadership's direction is the lighter one: pull live data
+   through the Salesforce/Gong/Slack/Planhat connectors already live and
+   vetted in Claude — the same ones this session already has — rather than
+   this server minting and managing its own. This reframes the project as
+   demo-focused for now, not a production multi-user credential holder; see
+   [[feedback-prefer-existing-infra]] in memory for why this shape keeps
+   coming up. Building this out is a two-person job — Jodi + Pauline — which
+   also bears on Decision 4.
+3. **GCP → AWS.** The Cloud Run/Secret Manager/GCP-project deploy plan below
+   was POC'd assuming GCP. 1upHealth doesn't have a GCP Cloud account, and
+   even if it did, AWS is the company's platform for both external and
+   internal solutions — deploy planning should target AWS, not GCP. The
+   Salesforce/Slack/Gong/Planhat "live setup" runbooks below reference Cloud
+   Shell/Secret Manager/Cloud NAT throughout; treat those as the shape of
+   the problem (rotate creds through a secrets manager, lock egress to a
+   static IP), not the literal GCP steps, until an AWS equivalent is worked
+   out.
+4. **Standalone app vs. folding into 1up-web — open, needs a pros/cons
+   conversation.** If standalone, there's a central compute cluster
+   (precedent: what was set up for Avi shortly before he left) this could
+   run on instead of a new cloud footprint — leadership offered to help
+   configure that path. Folding into 1up-web instead means adopting its
+   Flask blueprint pattern for real (see point 1) and its existing dev
+   cycle/release process rather than this project's own. Unresolved; affects
+   points 1 and 3 directly, so avoid sinking effort into GCP-specific or
+   deep standalone-deploy work until this lands.
+
 ## Run locally
 
 ```bash
@@ -205,17 +253,40 @@ conversation. For anyone who wants to look something up directly, or for
 demoing/debugging without going through Claude at all. Vanilla JS, no build
 step, no separate deploy.
 
+**One real, linkable URL per tab**, each with its own route instead of one
+single-URL SPA: `GET /dashboard` 302s to `/dashboard/overview`, the one
+canonical default; every tab below is its own `router.get` in
+`src/http/dashboard.ts`, serving a complete page built from
+`src/http/pages/*.ts` (a shared layout/CSS/nav in `pages/layout.ts`, small
+reusable client-JS snippets in `pages/shared.ts`, one file per tab). No tab
+switching happens in client JS anymore — the nav is real `<a href>` links,
+and the current page is marked active server-side. `fetch()`-driven
+interactivity *within* a page (search-as-you-type, filters, the L10 tool's
+buttons) is unchanged, and so is every `/api/...` route underneath.
+
 Styled to match 1up.health's own brand (Urbanist/Nunito Sans, teal-on-navy),
 in both light and dark. Beyond each tab's own content, every row/tile that
 represents a real deal or account is clickable straight through to its
 detail — an Overview renewal, at-risk company, or flagged fiction; a Recent
 activity, Coverage check, or Pipeline-pulse row; a Portfolio/Analytics-fit
 account — landing on that deal in Deal lookup or that account's Portfolio
-dossier (`goToDeal`/`goToAccountByName` in `dashboardPage.ts`).
+dossier. That's a real navigation now, not in-memory tab state: clicking
+through sends the browser to `/dashboard/deal-lookup?dealId=<id>` (or
+`?dealQuery=<name>` when only a name is known, e.g. a Salesforce opportunity
+row) or `/dashboard/customers?accountId=<id>` (or `?accountName=<name>`,
+which falls back to a Deal lookup search if the name has no portfolio
+dossier) — each target page reads that query param on load and
+fetches/renders the detail immediately, so the resulting URL is itself
+shareable (`goToDeal`/`goToDealQuery`/`goToAccountByName`/`goToAccountId` in
+`src/http/pages/shared.ts`). A couple of Overview's KPI tiles (Fictions
+flagged, Coverage gaps) go one step further and also auto-run that tab's
+query on arrival via `?autorun=1`, matching their old click-then-run
+behavior.
 
 Eleven tabs:
 
-- **Overview** — the default landing tab: a RevOps one-page rollup instead of
+- **Overview** (`/dashboard/overview`, also `/dashboard`'s redirect target)
+  — the default landing tab: a RevOps one-page rollup instead of
   five separate places to look. Open pipeline split into new sales / upsell /
   renewal (see "Segmentation" below for where that split actually comes
   from), fictions by severity, a "needs attention" list, coverage-check's
@@ -227,14 +298,18 @@ Eleven tabs:
   also narrows which accounts show up; a CSM filter also narrows which
   opportunities show up). Pure rollup — `src/routines/overview.ts` — no
   write path.
-- **Deal lookup** — search by name (`find_deal`), pick a result, see the same
-  combined Salesforce + Gong + Slack picture `deal_status` /
-  `deal_channel_activity` / `call_details` give Claude.
-- **Recent activity** — `recent_activity` as a form: an owner filter and a
-  day count instead of a deal Id.
-- **Coverage check** — `coverage_check` as a form: which open deals have no
-  Slack activity synced, no next step, or no Gong call.
-- **Pipeline-pulse** — a "Run pipeline-pulse (dry run)" button that lists the
+- **Deal lookup** (`/dashboard/deal-lookup`) — search by name (`find_deal`),
+  pick a result, see the same combined Salesforce + Gong + Slack picture
+  `deal_status` / `deal_channel_activity` / `call_details` give Claude.
+  Accepts `?dealId=` (loads that opportunity directly) and `?dealQuery=`
+  (pre-fills and runs the search) for deep-linking in from elsewhere.
+- **Recent activity** (`/dashboard/recent-activity`) — `recent_activity` as a
+  form: an owner filter and a day count instead of a deal Id.
+- **Coverage check** (`/dashboard/coverage-check`) — `coverage_check` as a
+  form: which open deals have no Slack activity synced, no next step, or no
+  Gong call. Accepts `?autorun=1`.
+- **Pipeline-pulse** (`/dashboard/pipeline-pulse`, accepts `?autorun=1`) —
+  a "Run pipeline-pulse (dry run)" button that lists the
   fictions it finds and the Planhat projects it would propose. This button
   **always** forces `dryRun: true`, regardless of `ROUTINES_DRY_RUN` in
   config — a person clicking this particular button should never be the
@@ -246,7 +321,10 @@ Eleven tabs:
   with no proposed-projects section at all. The L10 tab below is the one
   deliberate exception to "no writes from a browser click" — see its own
   entry.)
-- **Portfolio**, **Customers**, **Analytics fit** — the "1upHealth Customer
+- **Portfolio** (`/dashboard/portfolio`), **Customers**
+  (`/dashboard/customers`, accepts `?accountId=`/`?accountName=`/`?seg=` for
+  deep-linking straight to a dossier or a pre-filtered list), **Analytics
+  fit** (`/dashboard/analytics-fit`) — the "1upHealth Customer
   Intelligence — CMS-0057 Portfolio" research (43 accounts: architecture,
   financials, people, risks, ranked expansion plays, and a Gong-sourced
   analytics-demand study with a product pitch and gap analysis), folded into
@@ -263,7 +341,7 @@ Eleven tabs:
   render through an allowlist DOM builder (`renderRichHtml`), never raw
   `innerHTML`, matching this file's rule for anything ultimately grounded in
   external-system content.
-- **Clinical Connect** — a fixed four-account cohort (Fallon, Capital Health
+- **Clinical Connect** (`/dashboard/clinical-connect`) — a fixed four-account cohort (Fallon, Capital Health
   Plan, Viva Health, Zing Health), each laid out in the same four buckets as
   the `clinical_connect_status` MCP tool: what's going well (implementation
   status, active expansion plays), what isn't (the research's own "Risks &
@@ -274,11 +352,12 @@ Eleven tabs:
   field (`clinicalConnectAccountIds` in `src/routines/portfolio.ts`) — the
   going-well/not-well split is a grouping of existing research fields, never
   a generated verdict.
-- **Admin & audit** — the roster's members, and a live tail of the most
-  recent audit events (in-memory, capped, lost on restart — the durable trail
-  is still Cloud Logging → BigQuery; this is a convenience view, not a second
-  source of truth). Audit rows expand on click to the full event JSON.
-- **L10** — runs the bi-weekly cross-functional Implementation Review meeting
+- **Admin & audit** (`/dashboard/admin`) — the roster's members, and a live
+  tail of the most recent audit events (in-memory, capped, lost on restart —
+  the durable trail is still Cloud Logging → BigQuery; this is a convenience
+  view, not a second source of truth). Audit rows expand on click to the
+  full event JSON.
+- **L10** (`/dashboard/l10`) — runs the bi-weekly cross-functional Implementation Review meeting
   (Segue → Reporting → To-Do Review → IDS → Close), ported from a standalone
   artifact. State (issues, to-dos, scores, facilitator) persists to
   `L10_STATE_PATH` (`l10-state.json`, gitignored — runtime data, not source),

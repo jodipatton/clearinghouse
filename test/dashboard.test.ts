@@ -12,6 +12,7 @@ import { MockGong } from "../src/gong/mock.js";
 import { MockPlanhat } from "../src/planhat/mock.js";
 import { Roster } from "../src/roster.js";
 import { L10Store } from "../src/l10/store.js";
+import { DASHBOARD_ROUTES } from "../src/http/pages/index.js";
 
 const PUBLIC_URL = "https://mcp.example.com/mcp";
 const DEAL_ID = "006Ru00000AbCdEfGh"; // MMM Health, from src/salesforce/fixtures.ts
@@ -50,7 +51,15 @@ function startServer() {
 }
 
 describe("GET /dashboard", () => {
-  it("is gated by the same roster as /mcp", async () => {
+  it("redirects to /dashboard/overview — the one canonical default URL", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard`, { redirect: "manual" });
+    server.close();
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/dashboard/overview");
+  });
+
+  it("is gated by the same roster as /mcp, at the redirect target too", async () => {
     const cfg = loadConfig({ PUBLIC_URL, AUTH_MODE: "dev", DEV_USER_EMAIL: "stranger@1uphealth.com" });
     const app = createApp(cfg, {
       sf: new MockSalesforce(),
@@ -66,14 +75,65 @@ describe("GET /dashboard", () => {
     server.close();
     expect(res.status).toBe(403);
   });
+});
 
-  it("serves the page to a roster member", async () => {
+describe("GET /dashboard/<tab> — one linkable route per tab", () => {
+  it("is gated by the same roster as /mcp, for every tab route", async () => {
+    const cfg = loadConfig({ PUBLIC_URL, AUTH_MODE: "dev", DEV_USER_EMAIL: "stranger@1uphealth.com" });
+    const app = createApp(cfg, {
+      sf: new MockSalesforce(),
+      slack: new MockSlack(),
+      gong: new MockGong(),
+      planhat: new MockPlanhat(),
+      roster: new Roster(rosterFile([{ email: "dana@1uphealth.com" }])),
+      audit: stdoutAudit,
+    });
+    const server = app.listen(0);
+    const { port } = server.address() as AddressInfo;
+    for (const { path } of DASHBOARD_ROUTES) {
+      const res = await fetch(`http://127.0.0.1:${port}/dashboard/${path}`);
+      expect(res.status, `expected /dashboard/${path} to be gated`).toBe(403);
+    }
+    server.close();
+  });
+
+  it("serves a complete, distinct HTML page for every tab, to a roster member", async () => {
     const { server, base } = startServer();
-    const res = await fetch(`${base}/dashboard`);
+    for (const { path } of DASHBOARD_ROUTES) {
+      const res = await fetch(`${base}/dashboard/${path}`);
+      expect(res.status, `expected /dashboard/${path} to be 200`).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      const body = await res.text();
+      expect(body).toContain("Clearinghouse dashboard");
+      // Every page marks its own nav link active, not another tab's.
+      expect(body).toContain(`data-tab="${path}"`);
+    }
+    server.close();
+  });
+
+  it("Deal lookup's page ships client JS that reads ?dealId/?dealQuery on load, replacing the old in-memory goToDeal jump", async () => {
+    // The page itself is static per-request (no server-side templating of
+    // query params, same as before the route split) — the deep-link is
+    // resolved client-side via qp()/fetch() once the page loads, same as
+    // every other fetch()-driven interaction this dashboard already used.
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/deal-lookup?dealId=${DEAL_ID}`);
     server.close();
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("Clearinghouse dashboard");
+    const body = await res.text();
+    expect(body).toContain('qp("dealId")');
+    expect(body).toContain('qp("dealQuery")');
+  });
+
+  it("Customers reads ?accountId / ?accountName / ?seg on load, replacing the old in-memory goToAccountByName jump", async () => {
+    const { server, base } = startServer();
+    const res = await fetch(`${base}/dashboard/customers`);
+    server.close();
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('qp("accountId")');
+    expect(body).toContain('qp("accountName")');
+    expect(body).toContain('qp("seg")');
   });
 });
 

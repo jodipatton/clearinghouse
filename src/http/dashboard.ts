@@ -20,7 +20,7 @@ import { buildL10Briefing } from "../routines/l10.js";
 import { L10Store } from "../l10/store.js";
 import type { L10Issue, L10Todo } from "../l10/types.js";
 import { findCompanyForAccount } from "../fictions/match.js";
-import { DASHBOARD_HTML } from "./dashboardPage.js";
+import { DASHBOARD_ROUTES } from "./pages/index.js";
 
 // Reuses each MCP tool's own zod input shape for query-string validation, so
 // the dashboard can never silently drift from what Claude itself enforces.
@@ -82,7 +82,12 @@ export interface DashboardDeps {
 /**
  * Mounted under /dashboard, behind the same bearerAuth + roster gate as
  * /mcp — this is a second surface for the same authorized 1upers, not a
- * public or service-to-service path. Read-only except for two things:
+ * public or service-to-service path. One route per tab (see
+ * DASHBOARD_ROUTES in ./pages/index.ts), each serving a complete page from
+ * ./pages/*.ts — /dashboard itself just redirects to /dashboard/overview.
+ * The JSON /api/... routes below are unchanged by that split: every page's
+ * client JS calls the same endpoints the old single-URL dashboard did.
+ * Read-only except for two things:
  *
  * 1. The pipeline-pulse preview button, which always runs with dryRun forced
  *    true regardless of ROUTINES_SHARED_SECRET/ROUTINES_DRY_RUN — a person
@@ -130,9 +135,18 @@ export function buildDashboardRouter(deps: DashboardDeps): Router {
       }
     };
 
+  // One canonical default: /dashboard redirects to the Overview tab's own
+  // real, linkable URL rather than serving a page directly, so there's
+  // exactly one URL anyone bookmarks for "the dashboard's home."
   router.get("/", (_req, res) => {
-    res.type("html").send(DASHBOARD_HTML);
+    res.redirect(302, "/dashboard/overview");
   });
+
+  for (const { path, render } of DASHBOARD_ROUTES) {
+    router.get(`/${path}`, (_req, res) => {
+      res.type("html").send(render());
+    });
+  }
 
   router.get(
     "/api/overview",
